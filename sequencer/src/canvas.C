@@ -1839,7 +1839,7 @@ Canvas::handle ( int m )
       
                 if ( ghost_note )
                 {
-                    damage_grid( ghost_note->start, ghost_note->note, ghost_note->duration, 1 );
+                    processed = 0;
 
                     int ody = drag_y;
                     int odx = drag_x;
@@ -1851,14 +1851,24 @@ Canvas::handle ( int m )
                         /* cursor must leave the row to begin adjusting velocity. */
                         if ( ody != dy )
                         {
-                            ghost_note->velocity =
+                            int velocity;
+
+                            velocity =
                                 drag_note->velocity +
                                 ( (drag_y - y) / 3.0f );
                             
-                            if ( ghost_note->velocity < 0 )
-                                ghost_note->velocity = 0;
-                            else if ( ghost_note->velocity > 127 )
-                                ghost_note->velocity = 127;
+                            if ( velocity < 0 )
+                                velocity = 0;
+                            else if ( velocity > 127 )
+                                velocity = 127;
+
+                            if ( ghost_note->velocity != velocity )
+                            {
+                              ghost_note->velocity = velocity;
+                              damage_grid( ghost_note->start, ghost_note->note,
+                                           ghost_note->duration, 1 );
+                              processed = 2;
+                            }
                         }
                     }
 
@@ -1866,17 +1876,19 @@ Canvas::handle ( int m )
                         {
                             if ( dx > this->m.grid->ts_to_x( ghost_note->start ) )
                             {
-                                ghost_note->duration = this->m.grid->x_to_ts( dx  ) - ghost_note->start;
+                                tick_t duration = this->m.grid->x_to_ts( dx  ) - ghost_note->start;
+
+                                if ( ghost_note->duration != duration )
+                                {
+                                    damage_grid( ghost_note->start, ghost_note->note,
+                                                 max ( duration, ghost_note->duration ), 1 );
+                                    ghost_note->duration = duration;
+                                    processed = 2;
+                                }
                             }
                         }
-                    
-                        
-                    damage_grid( ghost_note->start, ghost_note->note, ghost_note->duration, 1 );
 
                     delete_note = false;
-
-                    processed = 2;
-             
                 }
             }
             break;
