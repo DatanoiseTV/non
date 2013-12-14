@@ -594,6 +594,8 @@ Canvas::draw_dash ( tick_t x, int y, tick_t w, int color, int selected ) const
     else
         color = velocity_colors[ 127 ];
 
+    if (selected) color = fl_color_average ( color, FL_MAGENTA, 0.5 );
+
     y = ntr( y );
     
     if ( y < 0 )
@@ -611,27 +613,7 @@ Canvas::draw_dash ( tick_t x, int y, tick_t w, int color, int selected ) const
     y = m.origin_y + m.margin_top + y * m.div_h;
     w *= m.div_w;
 
-    /* fl_rectf( x, y + 1, w, m.div_h - 1, fl_color_add_alpha( color, 170 ) ); */
-
-    /* fl_rect( x, y + 1, w, m.div_h - 1, selected ? FL_MAGENTA : fl_lighter( FL_BACKGROUND_COLOR )); */
-    
-    if ( w > 4 )
-    {
-        fl_draw_box( FL_ROUNDED_BOX, x, y + 1, w, m.div_h - 1, color );
-        
-        if ( selected )
-        {
-            cairo_set_operator( Fl::cairo_cc(),CAIRO_OPERATOR_HSL_COLOR );
-
-            fl_draw_box( FL_ROUNDED_BOX, x, y + 1, w, m.div_h - 1, FL_MAGENTA );
-
-            cairo_set_operator( Fl::cairo_cc(),CAIRO_OPERATOR_OVER);
-        }      
-  /* if ( selected ) */
-        /*     fl_draw_box( FL_ROUNDED_FRAME, x, y + 1, w, m.div_h - 1, FL_MAGENTA ); */
-    }
-
-// fl_color_add_alpha( color, 170 ));
+    if ( w > 4 ) fl_rectf( x + 1, y + 1, w - 1, m.div_h - 1, color );
 }
 
 /** callback used by Grid::draw()  */
