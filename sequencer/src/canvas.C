@@ -1859,17 +1859,18 @@ Canvas::handle ( int m )
 
                     if ( dx != odx )
                         {
-                            if ( dx > this->m.grid->ts_to_x( ghost_note->start ) )
-                            {
-                                tick_t duration = this->m.grid->x_to_ts( dx  ) - ghost_note->start;
+                            tick_t duration = this->m.grid->x_to_ts( dx ) - ghost_note->start;
+                            tick_t min = this->m.grid->x_to_ts ( 1 );
 
-                                if ( ghost_note->duration != duration )
-                                {
-                                    damage_grid( ghost_note->start, ghost_note->note,
-                                                 max ( duration, ghost_note->duration ), 1 );
-                                    ghost_note->duration = duration;
-                                    processed = 2;
-                                }
+                            if ( duration < min )
+                                duration = min;
+
+                            if ( ghost_note->duration != duration )
+                            {
+                                damage_grid( ghost_note->start, ghost_note->note,
+                                             max ( duration, ghost_note->duration ), 1 );
+                                ghost_note->duration = duration;
+                                processed = 2;
                             }
                         }
 
