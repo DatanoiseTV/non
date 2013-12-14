@@ -653,7 +653,7 @@ Grid::toggle_select ( int x, int y )
         change_update ( e );
     }
 
-    unlock();
+    unlock_no_undo();
 }
 
 /** copy selected notes to clipboard */
@@ -685,7 +685,7 @@ Grid::selected_velocity ( int v )
     _rw->events.selected_velocity( v );
     change_update_all();
 
-    unlock();
+    unlock_no_undo();
 }
 
 void
@@ -731,7 +731,7 @@ Grid::select ( int l, int r )
     _rw->events.select( start, end );
     change_update_all();
 
-    unlock();
+    unlock_no_undo();
 }
 
 /** select all (note) events in rectangle */
@@ -746,7 +746,7 @@ Grid::select ( int l, int r, int t, int b )
     _rw->events.select( start, end, y_to_note( t) , y_to_note( b ) );
     change_update_all();
 
-    unlock();
+    unlock_no_undo();
 }
 
 /** delete events from /x/ to /l/, compressing time. */
@@ -772,7 +772,7 @@ Grid::select_none ( void )
     _rw->events.select_none();
     change_update_all();
 
-    unlock();
+    unlock_no_undo();
 }
 
 void
@@ -783,7 +783,7 @@ Grid::select_all ( void )
     _rw->events.select_all();
     change_update_all();
 
-    unlock();
+    unlock_no_undo();
 }
 
 void
@@ -794,7 +794,7 @@ Grid::invert_selection ( void )
     _rw->events.invert_selection();
     change_update_all();
 
-    unlock();
+    unlock_no_undo();
 }
 
 void
