@@ -853,9 +853,6 @@ Canvas::draw ( void )
         if ( dy )
             draw_mapping();
 
-        _old_scroll_x = m.vp->x;
-        _old_scroll_y = m.vp->y;
-
         if ( damage() & FL_DAMAGE_CHILD )
             clear_damage( FL_DAMAGE_CHILD );
     }
@@ -871,6 +868,9 @@ Canvas::draw ( void )
     }
 
     draw_children();
+
+    _old_scroll_x = m.vp->x;
+    _old_scroll_y = m.vp->y;
 }
 
 void
@@ -886,20 +886,25 @@ Canvas::cb_scroll ( Fl_Widget *w )
     {
         Fl_Panzoomer *o = (Fl_Panzoomer*)w;
 
-        _old_scroll_x = m.vp->x;
-        _old_scroll_y = m.vp->y;
-
-        m.vp->x = grid()->ts_to_x( o->x_value() );
-        m.vp->y = o->y_value();
-
-        if ( m.vp->x != _old_scroll_x || m.vp->y != _old_scroll_y )
-            damage( FL_DAMAGE_SCROLL );
-
         if ( o->zoom_changed() )
         {
             m.vp->w = m.grid->division() * o->zoom();
             resize_grid();
             redraw();
+        }
+        else
+        {
+            int X, Y;
+
+            X = grid()->ts_to_x( o->x_value() );
+            Y = o->y_value();
+
+            if ( m.vp->x != X || m.vp->y != Y )
+            {
+                m.vp->x = X;
+                m.vp->y = Y;
+                damage( FL_DAMAGE_SCROLL );
+            }
         }
     }
     else if ( w == vzoom )
