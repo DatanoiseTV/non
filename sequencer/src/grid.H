@@ -29,6 +29,7 @@ class smf;
 #include "debug.h"
 
 const int MAX_UNDO = 50;
+#define MAX_CHANGE_UPDATES 2    // Maximum number of change updates to signal
 
 #include <list>
 
@@ -97,6 +98,14 @@ struct Viewport {
 };
 
 
+// Structure used for event change updates
+struct ChangeUpdate {
+    tick_t xt;
+    int y;
+    tick_t len;
+    int height;
+};
+
 
 class Grid : public trackable
 {
@@ -129,9 +138,9 @@ protected:
 
     list <data *> _history;
 
+    void _unlock ( bool no_undo );
     void _remove_marked ( void );
     MIDI::event * _event ( int x, int y, bool write ) const;
-    bool _delete ( int x, int y  );
     void _link ( void );
     void _relink ( void );
     void _fix_length ( void );
@@ -140,6 +149,8 @@ protected:
 private:
 
     volatile int _locked;
+    struct ChangeUpdate _change_updates[MAX_CHANGE_UPDATES];
+    int _change_count;
 
 public:
 
@@ -147,7 +158,7 @@ public:
 
     void draw_notes ( draw_note_func_t draw_note, void *userdata ) const;
 
-    signal <void> signal_events_change;
+    signal <void, tick_t, int, tick_t, int> signal_events_change;    /* xt, y, length, height */
     signal <void> signal_settings_change;
 
     Viewport viewport;                                          /* used by the Canvas */
@@ -175,6 +186,11 @@ public:
 
     void lock ( void );
     void unlock ( void );
+    void unlock_no_undo ( void );
+    void do_change_updates ( void );
+    void change_update ( tick_t xt, int y, tick_t len, int height );
+    void change_update ( MIDI::event *e );
+    void change_update_all ( void );
     void clear ( void );
     void del ( int x, int y );
     void adj_velocity ( int x, int y, int n );

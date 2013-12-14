@@ -104,23 +104,29 @@ void
 Grid::lock ( void )
 {
     if ( ! _locked++ )
+    {
         _rw = new data( *_rd );
+        _change_count = 0;
+    }
 }
 
 void
-Grid::unlock ( void )
+Grid::_unlock ( bool no_undo )
 {
     if ( 0 == --_locked )
     {
-        _history.push_back( const_cast<data *>( _rd ) );
-
-        if ( _history.size() > MAX_UNDO + 1 )
+        if ( !no_undo )
         {
-            data *d = _history.front();
+            _history.push_back( const_cast<data *>( _rd ) );
 
-            delete d;
+            if ( _history.size() > MAX_UNDO + 1 )
+            {
+                data *d = _history.front();
 
-            _history.pop_front();
+                delete d;
+
+                _history.pop_front();
+            }
         }
 
         // swap the copy back in (atomically).
@@ -128,8 +134,90 @@ Grid::unlock ( void )
 
         _rw = NULL;
 
-        signal_events_change();
+        do_change_updates();
     }
+}
+
+void
+Grid::unlock ( void )
+{
+    _unlock ( false );
+}
+
+void
+Grid::unlock_no_undo ( void )
+{
+    _unlock ( true );
+}
+
+void
+Grid::do_change_updates ( void )
+{
+    for (int i = 0; i < _change_count; i++)
+        signal_events_change ( _change_updates[i].xt, _change_updates[i].y,
+                               _change_updates[i].len, _change_updates[i].height );
+}
+
+// Queues an event change (height = 0: all)
+void
+Grid::change_update ( tick_t xt, int y, tick_t len, int height )
+{
+    if ( _change_count == 1 && _change_updates[0].height == 0 )
+        return;         // Return if already change all
+
+    // If max changes reached, convert to change all
+    if ( _change_count == MAX_CHANGE_UPDATES || height == 0 )
+    {
+        _change_count = 1;
+        _change_updates[0].xt = 0;
+        _change_updates[0].y = 0;
+        _change_updates[0].len = 0;
+        return;
+    }
+
+    // See if updates can be merged (only bother to merge single rows)
+    if ( _change_count == 1 && _change_updates[0].y == y
+         && height == 1 && _change_updates[0].height == 1 )
+    {
+        ChangeUpdate *c = &_change_updates[0];
+
+        if ( xt >= c->xt && xt <= c->xt + c->len )
+        {
+            tick_t end1, end2;
+
+            end1 = xt + len;
+            end2 = c->xt + c->len;
+            c->len = max( end1, end2 ) - c->xt;
+            return;
+        }
+        else if ( c->xt >= xt && c->xt <= xt + len )
+        {
+            tick_t end1, end2;
+
+            end1 = xt + len;
+            end2 = c->xt + c->len;
+            c->len = max( end1, end2 ) - xt;
+            c->xt = xt;
+            return;
+        }
+    }
+
+    _change_updates[_change_count].xt = xt;
+    _change_updates[_change_count].y = y;
+    _change_updates[_change_count].len = len;
+    _change_count++;
+}
+
+void
+Grid::change_update ( MIDI::event *e )
+{
+    change_update ( e->timestamp(), note_to_y ( e->note() ), e->note_duration(), 1 );
+}
+
+void
+Grid::change_update_all ( void )
+{
+    change_update (0, 0, 0, 0);
 }
 
 event *
@@ -171,30 +259,13 @@ Grid::_event ( int x, int y, bool write ) const
     return NULL;
 }
 
-bool
-Grid::_delete ( int x, int y )
-{
-    event *e = _event ( x, y, true );
-
-    if ( e )
-    {
-        if ( e->linked() )
-            _rw->events.remove( e->link() );
-
-        _rw->events.remove( e );
-
-        return true;
-    }
-
-    return false;
-}
-
 void
 Grid::clear ( void )
 {
     lock();
 
     _rw->events.clear();
+    change_update_all();
 
     unlock();
 }
@@ -204,7 +275,17 @@ Grid::del ( int x, int y )
 {
     lock();
 
-    _delete( x, y );
+    event *e = _event ( x, y, true );
+
+    if ( e )
+    {
+        change_update ( e );
+
+        if ( e->linked() )
+            _rw->events.remove( e->link() );
+
+        _rw->events.remove( e );
+    }
 
     unlock();
 }
@@ -250,10 +331,18 @@ Grid::trim ( void )
     if ( e )
     {
         tick_t ts = e->timestamp();
+        tick_t old_length = _rw->length;
 
         _rw->length = ts;
 
         _fix_length();
+
+        if ( _rw->length != old_length )
+        {
+            if ( _rw->length > old_length )
+                change_update( old_length, 0, _rw->length - old_length, 128 );
+            else change_update( _rw->length, 0, old_length - _rw->length, 128 );
+        }
     }
 
     unlock();
@@ -282,10 +371,14 @@ Grid::expand ( void )
     if ( e )
     {
         tick_t ts = e->timestamp();
+        tick_t old_length = _rw->length;
 
-        _rw->length = ts > _rw->length ? ts : _rw->length;
-
-        _fix_length();
+        if ( ts > _rw->length )
+        {
+            _rw->length = ts;
+            _fix_length();
+            change_update( old_length, 0, _rw->length - old_length, 128 );
+        }
     }
 
     unlock();
@@ -334,7 +427,7 @@ Grid::put ( int x, int y, tick_t l, int velocity )
     _rw->events.insert( on );
     _rw->events.insert( off );
 
-
+    change_update ( on );
     expand();
 
     unlock();
@@ -365,6 +458,8 @@ Grid::move ( int x, int y, int nx, int ny )
         event *on = e,
             *off = e->link();
 
+        change_update( on );
+
         _rw->events.unlink( on  );
         _rw->events.unlink( off );
 
@@ -376,6 +471,8 @@ Grid::move ( int x, int y, int nx, int ny )
 
         _rw->events.insert( off );
         _rw->events.insert( on );
+
+        change_update( on );
     }
 
     unlock();
@@ -395,19 +492,22 @@ Grid::adj_velocity ( int x, int y, int n )
 
         {
             int v = e->note_velocity();
+            int new_v = v + n;
 
-            v += n;
+            if ( new_v > 127 )
+                new_v = 127;
+            else if ( new_v <= 0 )
+                new_v = 1;
 
-            if ( v > 127 )
-                v = 127;
-
-            e->note_velocity( v > 0 ? v : 1 );
+            if ( new_v != v )
+            {
+                e->note_velocity( new_v );
+                change_update ( e );
+            }
         }
-
     }
 
     unlock();
-
 }
 
 void
@@ -422,19 +522,21 @@ Grid::adj_duration ( int x, int y, int l )
         DMESSAGE( "adjusting duration" );
 
         {
-            int v = ts_to_x( e->note_duration() );
+            tick_t len = e->note_duration();
+            int v = ts_to_x( len ) + l;
+            tick_t new_len = x_to_ts( v > 0 ? v : 1 );
 
-            v += l;
-
-            e->note_duration( x_to_ts( v > 0 ? v : 1 ) );
-
-            _rw->events.sort( e->link() );
+            if ( new_len != len )
+            {
+                e->note_duration( new_len );
+                _rw->events.sort( e->link() );
+                change_update( e->timestamp(), note_to_y( e->note() ),
+                               max( len, new_len ), 1 );
+            }
         }
-
     }
 
     unlock();
-
 }
 
 void
@@ -451,9 +553,16 @@ Grid::set_duration ( int x, int y, int ex )
     {
         DMESSAGE( "adjusting duration" );
 
-        e->note_duration( x_to_ts( ex ) );
-        
-        _rw->events.sort( e->link() );
+        tick_t len = e->note_duration();
+        tick_t new_len = x_to_ts( ex );
+
+        if ( new_len != len )
+        {
+            e->note_duration( new_len );
+            _rw->events.sort( e->link() );
+            change_update( e->timestamp(), note_to_y( e->note() ),
+                           max( len, new_len ), 1 );
+        }
     }
 
     unlock();
@@ -512,14 +621,15 @@ Grid::set_end ( int x, int y, int ex )
     {
         DMESSAGE( "adjusting duration" );
 
-        tick_t ts = x_to_ts( ex );
+        tick_t len = e->note_duration();
+        tick_t new_len = x_to_ts( ex ) - e->timestamp();
 
-        if ( ts > e->timestamp() &&
-             ts - e->timestamp() > x_to_ts( 1 ) )
+        if ( new_len > x_to_ts( 1 ) && new_len != len )
         {
-            e->note_duration( ts - e->timestamp() );
-            
+            e->note_duration( new_len );
             _rw->events.sort( e->link() );
+            change_update( e->timestamp(), note_to_y( e->note() ),
+                           max( len, new_len ), 1 );
         }
     }
 
@@ -539,6 +649,8 @@ Grid::toggle_select ( int x, int y )
             e->deselect();
         else
             e->select();
+
+        change_update ( e );
     }
 
     unlock();
@@ -560,6 +672,8 @@ Grid::cut ( void )
 
     _rw->events.remove_selected();
 
+    change_update_all();
+
     unlock();
 }
 
@@ -569,6 +683,7 @@ Grid::selected_velocity ( int v )
     lock();
 
     _rw->events.selected_velocity( v );
+    change_update_all();
 
     unlock();
 }
@@ -580,6 +695,7 @@ Grid::paste ( int offset )
     
     _rw->events.paste( x_to_ts( offset ), &_clipboard );
 
+    change_update_all();
     expand();
 
     unlock();
@@ -597,6 +713,7 @@ Grid::insert_time ( int l, int r )
 
     _rw->events.insert_time( start, end - start );
 
+    change_update_all();
     expand();
 
     unlock();
@@ -612,6 +729,7 @@ Grid::select ( int l, int r )
     lock();
 
     _rw->events.select( start, end );
+    change_update_all();
 
     unlock();
 }
@@ -626,6 +744,7 @@ Grid::select ( int l, int r, int t, int b )
     lock();
 
     _rw->events.select( start, end, y_to_note( t) , y_to_note( b ) );
+    change_update_all();
 
     unlock();
 }
@@ -640,6 +759,7 @@ Grid::delete_time ( int l, int r )
     lock();
 
     _rw->events.delete_time( start, end );
+    change_update_all();
 
     unlock();
 }
@@ -650,6 +770,7 @@ Grid::select_none ( void )
     lock();
 
     _rw->events.select_none();
+    change_update_all();
 
     unlock();
 }
@@ -660,6 +781,7 @@ Grid::select_all ( void )
     lock();
 
     _rw->events.select_all();
+    change_update_all();
 
     unlock();
 }
@@ -670,6 +792,7 @@ Grid::invert_selection ( void )
     lock();
 
     _rw->events.invert_selection();
+    change_update_all();
 
     unlock();
 }
@@ -680,6 +803,7 @@ Grid::delete_selected ( void )
     lock();
 
     _rw->events.remove_selected();
+    change_update_all();
 
     unlock();
 }
@@ -697,6 +821,7 @@ Grid::nudge_selected ( int l )
 //    MESSAGE( "moving by %ld", o );
 
     _rw->events.nudge_selected( o );
+    change_update_all();
 
     unlock();
 }
@@ -711,6 +836,7 @@ Grid::move_selected ( int l )
 //    MESSAGE( "moving by %ld", o );
 
     _rw->events.move_selected( o );
+    change_update_all();
 
     unlock();
 }
@@ -725,6 +851,7 @@ Grid::crop ( int l, int r )
     if ( l > 0 )
         delete_time( 0, l );
 
+    change_update_all();
     trim();
 
     unlock();
@@ -744,7 +871,7 @@ Grid::crop ( int l, int r, int t, int b )
 
     _rw->events.pop_selection();
 
-    crop( l, r );
+    crop( l, r );       // Does a change all update
 
     unlock();
 }
@@ -871,14 +998,12 @@ Grid::bars ( int n )
     lock();
     
     _rw->length = n * _bpb * PPQN;
-    
      _fix_length();
+     change_update_all();
 
     unlock();
 
     // trim();
-
-    signal_events_change();
 }
 
 int
@@ -921,8 +1046,8 @@ Grid::resolution ( unsigned int n )
 
     viewport.w = _ppqn * W;
  
-    signal_events_change();
-
+    change_update_all();
+    do_change_updates();
     signal_settings_change();
 }
 
@@ -999,8 +1124,9 @@ Grid::undo ( void )
     _rd = (const data *)d;
     
     _rw = NULL;
-    
-    signal_events_change();
+
+    change_update_all();
+    do_change_updates();
 }
 
 /** return a pointer to a copy of grid's event list in raw form */

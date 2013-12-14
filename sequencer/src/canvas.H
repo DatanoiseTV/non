@@ -111,7 +111,7 @@ class Canvas : public Fl_Group, public trackable
     static void cb_scroll (  Fl_Widget *w, void *v );
     void cb_scroll ( Fl_Widget *w );
     static void draw_clip ( void *v, int X, int Y, int W, int H );
-    void draw_clip ( int X, int Y, int W, int H );
+    void draw_clip ( void );
 
 enum {
     SELECT_NONE = 0,
@@ -137,7 +137,7 @@ public:
     void cut ( void );
     void paste ( void );
     void redraw_playhead ( void );
-    void handle_event_change ( void );
+    void handle_event_change ( tick_t x, int y, tick_t length, int height );
     void set ( int x, int y );
     void grid ( Grid *g );
     void changed_mapping ( void );

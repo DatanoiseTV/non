@@ -216,17 +216,18 @@ Canvas::~Canvas ( )
 }
 
 void
-Canvas::handle_event_change ( void )
+Canvas::handle_event_change ( tick_t x, int y, tick_t length, int height )
 {
     /* mark the song as dirty and pass the signal on */
     song.set_dirty();
 
-    Grid *g = grid();
-    panzoomer->x_value( g->x_to_ts( m.vp->x), g->x_to_ts( m.vp->w ), 0, g->length());
-
-    // panzoomer->redraw();
-
-    redraw();
+    if (height == 0)
+    {
+      Grid *g = grid();
+      panzoomer->x_value( g->x_to_ts( m.vp->x), g->x_to_ts( m.vp->w ), 0, g->length());
+      redraw();
+    }
+    else damage_grid (x, y, length, height);
 }
 
 /** change grid to /g/, returns TRUE if new grid size differs from old */
@@ -732,33 +733,36 @@ Canvas::draw_playhead ( void )
 void
 Canvas::draw_clip ( void *v, int X, int Y, int W, int H )
 {
-    ((Canvas*)v)->draw_clip( X,Y,W,H );
+    fl_push_clip (X, Y, W, H);
+    ((Canvas*)v)->draw_clip();
+    fl_pop_clip ();
 }
 
 void
-Canvas::draw_clip ( int X, int Y, int W, int H )
+Canvas::draw_clip ( void )
 {
+    int X, Y, W, H;
+
     box( FL_FLAT_BOX );
     labeltype( FL_NO_LABEL );
 
-    fl_push_clip( X,Y,W,H );
+    X = m.origin_x + m.margin_left;
+    Y = m.origin_y + m.margin_top;
+    W = w() - m.margin_left;
+    H = h() - m.margin_top - panzoomer->h();
 
+    fl_push_clip( X, Y, W, H );
 
-    fl_push_clip( m.origin_x + m.margin_left,
-                  m.origin_y + m.margin_top,
-                  w() - m.margin_left,
-                  h() - m.margin_top - panzoomer->h() );
-
-    fl_rectf( m.origin_x + m.margin_left, m.origin_y + m.margin_top, w(), h(), FL_BLACK );
+    fl_rectf( X, Y, W, H, FL_BLACK );
 
     /* draw bar/beat lines */
 
     for ( int gx = m.vp->x;
-          gx < m.vp->x + m.vp->w + 200;                                   /* hack */
+          gx < m.vp->x + m.vp->w;
           gx++ )
     {
         if ( m.grid->x_to_ts( gx ) > m.grid->length() )
-            continue;
+            break;
 
         if ( gx % m.grid->division() == 0 )
             fl_color( fl_color_average( FL_GRAY, FL_BLACK, 0.80 ) );
@@ -767,10 +771,10 @@ Canvas::draw_clip ( int X, int Y, int W, int H )
         else
             continue;
         
-        fl_rectf( m.origin_x + m.margin_left + ( ( gx - m.vp->x ) * m.div_w ),
-                  m.origin_y + m.margin_top, 
+        fl_rectf( X + ( ( gx - m.vp->x ) * m.div_w ),
+                  Y, 
                   m.div_w, 
-                  y() + h() - m.margin_top );
+                  H );
     }
 
     m.grid->draw_notes( draw_dash, this );
@@ -790,34 +794,25 @@ Canvas::draw_clip ( int X, int Y, int W, int H )
     
     if ( m.div_w > 4 )
     {
-        for ( int gx = m.origin_x + m.margin_left;
-              gx < x() + w();
-              gx += m.div_w )
+        for ( int gx = X; gx < X + W; gx += m.div_w )
         {
-//            fl_line(  gx, m.origin_y + m.margin_top, gx, y() + h() );
-            fl_vertex( gx, m.origin_y + m.margin_top );
-            fl_vertex( gx, y() + h() );
+            fl_vertex( gx, Y );
+            fl_vertex( gx, Y + H );
             fl_gap();
         }
     }
 
     if ( m.div_h > 2 )
     {
-        for ( int gy = m.origin_y + m.margin_top;
-              gy < y() + h();
-              gy += m.div_h )
+        for ( int gy = Y; gy < Y + H; gy += m.div_h )
         {
-//            fl_line( m.origin_x + m.margin_left, gy,  x() + w(), gy ); 
-            fl_vertex( m.origin_x + m.margin_left, gy );
-            fl_vertex( x() + w(), gy );
+            fl_vertex( X, gy );
+            fl_vertex( X + W, gy );
             fl_gap();
         }
     }
 
     fl_end_line();
-
-//done:
-    fl_pop_clip();
 
     fl_pop_clip();
 }
@@ -841,8 +836,6 @@ Canvas::draw ( void )
 
     if ( damage() & FL_DAMAGE_SCROLL )
     {
-        draw_ruler();
-
         int dx = ( _old_scroll_x - m.vp->x ) * m.div_w;
         int dy = ( _old_scroll_y - m.vp->y ) * m.div_h;
 
@@ -853,6 +846,9 @@ Canvas::draw ( void )
                    dx, dy, 
                    draw_clip,
                    this );
+
+        if ( dx )
+            draw_ruler();
 
         if ( dy )
             draw_mapping();
@@ -865,10 +861,13 @@ Canvas::draw ( void )
     }
     else if ( damage() & ~FL_DAMAGE_CHILD )
     {
-        draw_mapping();
-        draw_ruler();
+        if (!( damage() & FL_DAMAGE_USER1))
+        {
+          draw_mapping();
+          draw_ruler();
+        }
 
-        draw_clip( x(), y(), w(), h() );
+        draw_clip ();
     }
 
     draw_children();
@@ -1356,7 +1355,6 @@ Canvas::handle ( int m )
     {
         case FL_FOCUS:
         case FL_UNFOCUS:
-            damage( FL_DAMAGE_ALL );
             return 1;
         case FL_ENTER:
         case FL_LEAVE:
@@ -1878,11 +1876,11 @@ Canvas::handle ( int m )
             processed = 0;
     }
 
-    if ( processed )
-        window()->damage(FL_DAMAGE_OVERLAY);
+//    if ( processed )
+//        window()->damage(FL_DAMAGE_OVERLAY);
 
-    if ( processed == 1 )
-        damage(FL_DAMAGE_USER1);
+//    if ( processed == 1 )
+//        damage(FL_DAMAGE_USER1);
 
     if ( ! processed )
         return Fl_Group::handle( m );
