@@ -466,7 +466,7 @@ Grid::move ( int x, int y, int nx, int ny )
         on->note( y_to_note( ny ) );
 
         tick_t l = on->note_duration();
-        on->timestamp( x_to_ts( ny ) );
+        on->timestamp( x_to_ts( nx ) );
         on->note_duration( l );
 
         _rw->events.insert( off );
