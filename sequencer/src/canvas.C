@@ -1264,7 +1264,10 @@ Canvas::pan ( int dir, int n )
         }
     }
 
-    damage(FL_DAMAGE_USER1);
+    panzoomer->x_value( m.grid->x_to_ts( m.vp->x), m.grid->x_to_ts( m.vp->w ),
+                        0, m.grid->length());
+    panzoomer->y_value( m.vp->y, m.vp->h, 0, m.maxh  );
+    redraw();
 }
 
 void
