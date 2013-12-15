@@ -62,11 +62,6 @@ class Canvas : public Fl_Group, public trackable
 
         int maxh;
 
-        bool ruler_drawn;
-        bool mapping_drawn;
-
-        bool grid_drawn;
-
         int playhead;                                           /* where the playhead is for this canvas. only used for display. */
 
         enum { PATTERN, SEQUENCE } mode;

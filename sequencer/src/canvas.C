@@ -192,8 +192,6 @@ Canvas::Canvas ( int X, int Y, int W, int H, const char *L ) : Fl_Group( X,Y,W,H
     m.margin_top = ruler_height;
 
     m.draw = false;
-    m.ruler_drawn = false;
-    m.grid_drawn = false;
 
 //    m.current = m.previous = NULL;
 
@@ -244,8 +242,6 @@ Canvas::grid ( Grid *g )
     char *s = m.vp->dump();
     DMESSAGE( "viewport: %s", s );
     free( s );
-
-    m.ruler_drawn = false;
 
     resize_grid();
 
@@ -993,8 +989,6 @@ Canvas::start_cursor ( int x, int y )
     if ( ! grid_pos( &x, &y ) )
         return;
 
-    m.ruler_drawn = false;
-
     m.p1 = x;
 
 
@@ -1010,8 +1004,6 @@ Canvas::end_cursor ( int x, int y )
 {
     if ( ! grid_pos( &x, &y ) )
         return;
-
-    m.ruler_drawn = false;
 
     m.p2 = x;
 
@@ -1148,8 +1140,6 @@ Canvas::crop ( void )
 
     m.p2 = m.p2 - m.p1;
     m.p1 = 0;
-
-    m.ruler_drawn = false;
 }
 
 void
@@ -1226,7 +1216,6 @@ Canvas::pan ( int dir, int n )
         case LEFT: case RIGHT: case TO_PLAYHEAD: case TO_NEXT_NOTE: case TO_PREV_NOTE:
             /* handle horizontal movement specially */
             n *= m.grid->division();
-            m.ruler_drawn = false;
             break;
         default:
             n *= 5;
