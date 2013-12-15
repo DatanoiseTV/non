@@ -1810,17 +1810,18 @@ Canvas::handle ( int m )
                             move_selected( LEFT, last_move_x - dx );
                     }
     
-                    dy = ntr( dy );
-
-                    if ( dy != last_move_y )
+                    if ( dy >= 0 && dy <= 127 )
                     {
+                        dy = ntr( dy );
+
                         if ( dy > last_move_y  )
                             move_selected( DOWN, dy - last_move_y );
-                        else
+                        else if ( dy < last_move_y )
                             move_selected( UP, last_move_y - dy );
+
+                        last_move_y = dy;
                     }
                 
-                    last_move_y = dy;
                     last_move_x = dx;
                     return 1;
                 }
