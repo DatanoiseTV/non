@@ -400,7 +400,7 @@ Grid::put ( int x, int y, tick_t l, int velocity )
 
     // Don't allow overlap (Why not?)
     if ( _event( x, y, false ) ||
-         _event( x + xl, y, false ) )
+         ( xl > 1 && _event( x + xl - 1, y, false ) ) )
         return;
 
     event *on = new event;
