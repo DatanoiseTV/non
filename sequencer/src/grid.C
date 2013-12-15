@@ -398,13 +398,13 @@ Grid::put ( int x, int y, tick_t l, int velocity )
     int xl = ts_to_x( l );
     tick_t ts = x_to_ts( x );
 
-    event *on = new event;
-    event *off = new event;
-
     // Don't allow overlap (Why not?)
     if ( _event( x, y, false ) ||
          _event( x + xl, y, false ) )
         return;
+
+    event *on = new event;
+    event *off = new event;
 
     DMESSAGE( "put %d,%d", x, y );
 
