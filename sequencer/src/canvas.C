@@ -1679,8 +1679,6 @@ Canvas::handle ( int m )
         }
         case FL_RELEASE:
         {
-            _move_mode = false;
-           
             if ( SELECT_RANGE == _selection_mode )
             {
                 select_range();
@@ -1727,40 +1725,36 @@ Canvas::handle ( int m )
                 return 1;
             }
 
-            int dx = x;
-            int dy = y;
-            grid_pos( &dx, &dy );
-
-                if ( delete_note )
+            if ( delete_note )
+            {
+                if ( ghost_note )
                 {
-//                            this->m.grid->del( dx, dy );
-                    if ( ghost_note )
-                    {
-                        damage_grid( ghost_note->start, ghost_note->note, ghost_note->duration, 1 );
+                    damage_grid( ghost_note->start, ghost_note->note, ghost_note->duration, 1 );
 
-                        delete ghost_note;
-                    }
-                    ghost_note = 0;
+                    delete ghost_note;
                 }
-                else
-                    if ( ghost_note )
-                    {
-                        this->m.grid->put( this->m.grid->ts_to_x( ghost_note->start ), 
-                                           ghost_note->note,
-                                           ghost_note->duration,
-                                           ghost_note->velocity);
+                ghost_note = 0;
+            }
+            else if ( ghost_note )
+            {
+                this->m.grid->put( this->m.grid->ts_to_x( ghost_note->start ), 
+                                   ghost_note->note,
+                                   ghost_note->duration,
+                                   ghost_note->velocity);
 
-                        delete_note = false;
-                                
-                        delete ghost_note;
-                        ghost_note = 0;
-                    }
+                delete_note = false;
+
+                delete ghost_note;
+                ghost_note = 0;
+            }
 
             if ( drag_note )
                 delete drag_note;
             drag_note = 0;
 
-            grid()->select_none();
+            if ( !_move_mode )
+                grid()->select_none();
+            else _move_mode = false;
 
             break;
         }
