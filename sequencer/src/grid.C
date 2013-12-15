@@ -988,6 +988,7 @@ Grid::length ( tick_t l )
     lock();
 
     _rw->length = l;
+    change_update_all();
 
     unlock();
 }
@@ -998,8 +999,8 @@ Grid::bars ( int n )
     lock();
     
     _rw->length = n * _bpb * PPQN;
-     _fix_length();
-     change_update_all();
+    _fix_length();
+    change_update_all();
 
     unlock();
 
@@ -1146,5 +1147,6 @@ Grid::events ( const event_list * el )
 
     _rw->events = *el;
 
+    change_update_all();
     unlock();
 }
