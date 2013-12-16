@@ -283,14 +283,24 @@ namespace MIDI
     {
         FOR_ALL( e )
         {
-            tick_t ts = e->timestamp();
-
-            /* don't count note offs exactly on start */
-            if ( ts == start && e->is_note_off() )
+            if ( e->is_note_off() )
                 continue;
 
-            if ( ts >= start && ts < end )
+            tick_t ts = e->timestamp();
+
+            if ( ts < end )
+            {
+                if ( ts < start )
+                {
+                    event *off = e->link();
+
+                    // Check if range is inside the note duration
+                    if ( !off || off->timestamp() <= start )    // Don't select note-offs equal to start
+                        continue;
+                }
+
                 e->select();
+            }
         }
     }
 
@@ -300,15 +310,29 @@ namespace MIDI
     {
         FOR_ALL( e )
         {
-            tick_t ts = e->timestamp();
-
-            /* don't count note offs exactly on start */
-            if ( ! e->is_note_on() )
+            if ( e->is_note_off() )
                 continue;
 
-            if ( ts >= start && ts < end &&
-                 e->note() <= hi && e->note() >= lo )
+            int note = e->note();
+
+            if ( note < lo || note > hi )
+                continue;
+
+            tick_t ts = e->timestamp();
+
+            if ( ts < end )
+            {
+                if ( ts < start )
+                {
+                    event *off = e->link();
+
+                    // Check if range is inside the note duration
+                    if ( !off || off->timestamp() <= start )    // Don't select note-offs equal to start
+                        continue;
+                }
+
                 e->select();
+            }
         }
     }
 
