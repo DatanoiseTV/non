@@ -1826,9 +1826,7 @@ Canvas::handle ( int m )
                         {
                             int velocity;
 
-                            velocity =
-                                drag_note->velocity +
-                                ( (drag_y - y) / 3.0f );
+                            velocity = drag_note->velocity + drag_y - y;
                             
                             if ( velocity < 0 )
                                 velocity = 0;
