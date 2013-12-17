@@ -304,7 +304,7 @@ namespace MIDI
         }
     }
 
-/** select note evenets from /start/ to /end/ within range /hi/ through /lo/ */
+/** select note evenets from /start/ to /end/ (exclusive) within range /hi/ to /lo/ (exclusive) */
     void
     event_list::select ( tick_t start, tick_t end, int hi, int lo )
     {
@@ -315,7 +315,7 @@ namespace MIDI
 
             int note = e->note();
 
-            if ( note < lo || note > hi )
+            if ( note <= lo || note > hi )
                 continue;
 
             tick_t ts = e->timestamp();
