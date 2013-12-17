@@ -38,6 +38,7 @@ using namespace MIDI;
 extern UI *ui;
 
 extern Fl_Color velocity_colors[];
+extern Fl_Color velocity_select_colors[];
 const int ruler_height = 14;
 
 
@@ -583,15 +584,15 @@ Canvas::damage_grid ( tick_t x, int y, tick_t w, int h = 1 )
            m.div_h * h );
 }
 
+
+
 void
 Canvas::draw_dash ( tick_t x, int y, tick_t w, int color, int selected ) const
 {
-    if ( m.grid->velocity_sensitive() )
-        color = velocity_colors[ color ];
-    else
-        color = velocity_colors[ 127 ];
+    if ( !m.grid->velocity_sensitive() )
+        color = 127;
 
-    if (selected) color = fl_color_average ( color, FL_MAGENTA, 0.5 );
+    color = selected ? velocity_select_colors[ color ] : velocity_colors[ color ];
 
     y = ntr( y );
     

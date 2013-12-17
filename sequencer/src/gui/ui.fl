@@ -94,6 +94,9 @@ decl {Fl_Color canvas_background_color;} {public local
 decl {Fl_Color velocity_colors[128];} {public local
 } 
 
+decl {Fl_Color velocity_select_colors[128];} {public local
+} 
+
 Function {init_colors()} {open private C return_type {static void}
 } {
   code {unsigned int i;
@@ -105,6 +108,16 @@ Function {init_colors()} {open private C return_type {static void}
     for ( i = 128; i--; )
     {
         velocity_colors[i] = fl_color_average( hi, lo, 1.0 * ((float)i / 128) );
+    }
+
+    /* selected velocity colors */
+
+    lo = fl_color_average( FL_MAGENTA, FL_BLACK, 0.40 );
+    hi = fl_color_average( FL_MAGENTA, FL_WHITE, 0.90 );
+
+    for ( i = 128; i--; )
+    {
+        velocity_select_colors[i] = fl_color_average( hi, lo, 1.0 * ((float)i / 128) );
     }} {}
 } 
 
