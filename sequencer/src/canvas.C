@@ -41,6 +41,9 @@ extern Fl_Color velocity_colors[];
 extern Fl_Color velocity_select_colors[];
 const int ruler_height = 14;
 
+#define IS_PATTERN (parent() == ui->pattern_tab)
+#define IS_PHRASE (parent() == ui->phrase_tab)
+#define IS_SEQUENCE (parent() == ui->sequence_tab)
 
 
 
@@ -188,7 +191,7 @@ Canvas::Canvas ( int X, int Y, int W, int H, const char *L ) : Fl_Group( X,Y,W,H
         o->end();
     }
 
-    m.origin_x = m.origin_y = m.height = m.width = m.div_w = m.div_h = m.margin_top = m.margin_left = m.playhead = m.w = m.h = m.p1 = m.p2 = m.p3 = m.p4 = 0;
+    m.origin_x = m.origin_y = m.height = m.width = m.div_w = m.div_h = m.margin_top = m.margin_left = m.playhead = m.w = m.h = 0;
 
     m.margin_top = ruler_height;
 
@@ -401,7 +404,7 @@ Canvas::viewable_x ( int x )
 
 static
 int
-gui_draw_ruler ( int x, int y, int w, int div_w, int div, int ofs, int p1, int p2 )
+gui_draw_ruler ( int x, int y, int w, int div_w, int div, int ofs )
 {
     /* Across the top */
 
@@ -440,29 +443,6 @@ gui_draw_ruler ( int x, int y, int w, int div_w, int div, int ofs, int p1, int p
 
             fl_color( FL_FOREGROUND_COLOR );
             fl_draw( pat, nx + div_w / 2, y + h + 1 / 2 );
-        }
-    }
-
-    if ( p1 != p2 )
-    {
-        if ( p1 >= 0 )
-        {
-            if ( p1 < p2 )
-                fl_color( fl_color_add_alpha( FL_GREEN, 100 ) );
-            else
-                fl_color( fl_color_add_alpha( FL_GREEN, 100 ) );
-
-            fl_rectf( x + (div_w * p1), y + h / 2, div_w, h / 2 );
-
-        }
-        if ( p2 >= 0 )
-        {
-            if ( p2 < p1 )
-                fl_color( fl_color_add_alpha( FL_GREEN, 100 ) );
-            else
-                fl_color( fl_color_add_alpha( FL_RED, 100 ) );
-            fl_rectf( x + (div_w * p2), y + h / 2, div_w, h / 2 );
-
         }
     }
 
@@ -554,9 +534,7 @@ Canvas::draw_ruler ( void )
                                    m.vp->w,
                                    m.div_w,
                                    m.grid->division(),
-                                   m.vp->x,
-                                   m.p1 - m.vp->x,
-                                   m.p2 - m.vp->x );
+                                   m.vp->x);
 }
 
 void
@@ -661,8 +639,6 @@ Canvas::draw_overlay ( void )
     if ( ! visible_r() )
         return;
 
-    /* fl_push_no_clip(); */
-    
     fl_push_clip( x() + m.margin_left,
                   y() + m.margin_top,
                   w() - m.margin_left,
@@ -670,29 +646,63 @@ Canvas::draw_overlay ( void )
 
     draw_playhead();
 
-    if ( _selection_mode )
+    if ( _selection.x1 != 0 || _selection.x2 != 0 )
     {
-        int X,Y,W,H;
-        
-        SelectionRect &s = _selection_rect;
+        int X1,Y1,X2,Y2,W,H;
 
-        X = s.x1 < s.x2 ? s.x1 : s.x2;
-        Y = s.y1 < s.y2 ? s.y1 : s.y2;
-        W = s.x1 < s.x2 ? s.x2 - s.x1 : s.x1 - s.x2;
-        H = s.y1 < s.y2 ? s.y2 - s.y1 : s.y1 - s.y2;
-               
-        /* fl_rectf( X,Y,W,H, fl_color_add_alpha( FL_MAGENTA, 50 ) ); */
-        
-        fl_rect( X,Y,W,H, FL_MAGENTA );
-        
+        SelectionRect &s = _selection;
+
+        X1 = min( s.x1, s.x2 ) - m.vp->x;
+        X2 = max( s.x1, s.x2 ) - m.vp->x;
+
+        if ( s.y1 != 0 || s.y2 != 128 )
+        {
+            Y1 = ntr ( min( s.y1, s.y2 ) ) - m.vp->y;
+            Y2 = ntr ( max( s.y1, s.y2 ) ) - m.vp->y;
+            H = (Y2 - Y1) * m.div_h;
+            Y1 = Y1 * m.div_h + m.origin_y + m.margin_top;
+        }
+        else
+        {
+            Y1 = m.origin_y + m.margin_top - 1;
+            H = h() - panzoomer->h() - m.margin_top + 2;
+        }
+
+        W = (X2 - X1) * m.div_w;
+        X1 = X1 * m.div_w + m.origin_x + m.margin_left;
+
+        fl_rect( X1, Y1, W, H, _selection_mode ? FL_BLUE : fl_color_add_alpha ( FL_BLUE, 100 ) );
     }
 
     fl_pop_clip();
 
+// Ruler start/end range markers removed (maybe forever)
+#if 0
+    if ( _selection_mode == SELECT_RANGE )
+    {
+        int X = m.origin_x + m.margin_left;
+        int Y = m.origin_y;
+        int H = ruler_height;
+        int P1, P2;
+
+        P1 = min ( _selection.x1, _selection.x2 );
+        P2 = max ( _selection.x1, _selection.x2 ) - 1;
+
+        if ( P1 >= 0 )
+        {
+            fl_color( fl_color_add_alpha ( FL_GREEN, 200 ) );
+            fl_rectf( X + (m.div_w * P1), Y + H / 2, m.div_w, H / 2 );
+        }
+
+        if ( P2 >= 0 && P2 != P1 )
+        {
+            fl_color( fl_color_add_alpha ( FL_RED, 200 ) );
+            fl_rectf( X + (m.div_w * P2), Y + H / 2, m.div_w, H / 2 );
+        }
+    }
+#endif
+
     panzoomer->draw_overlay();
-
-    /* fl_pop_clip(); */
-
 }
 
 /** draw only the playhead--without reexamining the grid */
@@ -985,37 +995,6 @@ Canvas::is_ruler_click ( void ) const
 }
 
 void
-Canvas::start_cursor ( int x, int y )
-{
-    if ( ! grid_pos( &x, &y ) )
-        return;
-
-    m.p1 = x;
-
-
-    /* m.p3 = ntr( y ); */
-
-    _lr();
-
-    redraw();
-}
-
-void
-Canvas::end_cursor ( int x, int y )
-{
-    if ( ! grid_pos( &x, &y ) )
-        return;
-
-    m.p2 = x;
-
-    /* m.p4 = ntr( y ); */
-
-    _lr();
-
-    redraw();
-}
-
-void
 Canvas::adj_color ( int x, int y, int n )
 {
     if ( ! grid_pos( &x, &y ) )
@@ -1095,32 +1074,12 @@ Canvas::move_selected ( int dir, int n )
 }
 
 void
-Canvas::_lr ( void )
-{
-    int l, r;
-
-    if ( m.p2 > m.p1 )
-    {
-        l = m.p1;
-        r = m.p2;
-    }
-    else
-    {
-        l = m.p2;
-        r = m.p1;
-    }
-
-    m.p1 = l;
-    m.p2 = r;
-}
-
-void
 Canvas::select_range ( void )
 {
-    if ( m.p3 == m.p4 )
-        m.grid->select( m.p1, m.p2 );
+    if ( _selection.y1 == 0 && _selection.y2 == 128 )
+        m.grid->select( _selection.x1, _selection.x2 );
     else
-        m.grid->select( m.p1, m.p2, rtn( m.p3 ), rtn( m.p4 ) );
+        m.grid->select( _selection.x1, _selection.x2, rtn( _selection.y1 ), rtn( _selection.y2 ) );
 }
 
 void
@@ -1132,28 +1091,28 @@ Canvas::invert_selection ( void )
 void
 Canvas::crop ( void )
 {
-    if ( m.p3 == m.p4 )
-        m.grid->crop( m.p1, m.p2 );
+    if ( _selection.y1 == 0 && _selection.y2 == 128 )
+        m.grid->crop( _selection.x1, _selection.x2 );
     else
-        m.grid->crop( m.p1, m.p2, rtn( m.p3 ), rtn( m.p4 ) );
+        m.grid->crop( _selection.x1, _selection.x2, rtn( _selection.y1 ), rtn( _selection.y2 ) );
 
     m.vp->x = 0;
 
-    m.p2 = m.p2 - m.p1;
-    m.p1 = 0;
+    _selection.x2 = _selection.x2 - _selection.x1;
+   _selection.x1 = 0;
 }
 
 void
 Canvas::delete_time ( void )
 {
-    m.grid->delete_time( m.p1, m.p2 );
+    m.grid->delete_time( _selection.x1, _selection.x2 );
 }
 
 
 void
 Canvas::insert_time ( void )
 {
-    m.grid->insert_time( m.p1, m.p2 );
+    m.grid->insert_time( _selection.x1, _selection.x2 );
 }
 
 /** paste range as new grid */
@@ -1162,7 +1121,7 @@ Canvas::duplicate_range ( void )
 {
     Grid *g = m.grid->clone();
 
-    g->crop( m.p1, m.p2 );
+    g->crop( _selection.x1, _selection.x2 );
     g->viewport.x = 0;
 }
 
@@ -1181,8 +1140,8 @@ Canvas::copy ( void )
 void
 Canvas::paste ( void ) 
 {
-    if ( m.p1 != m.p2 && m.p1 > m.vp->x && m.p1 < m.vp->x + m.vp->w )
-        m.grid->paste( m.p1 );
+    if ( _selection.x1 != _selection.x2 && _selection.x1 > m.vp->x && _selection.x1 < m.vp->x + m.vp->w )
+        m.grid->paste( _selection.x1 );
     else
         m.grid->paste( m.vp->x );
 }
@@ -1327,6 +1286,36 @@ Canvas::notes ( void )
     return m.grid->notes();
 }
 
+/** Set selection region */
+void
+Canvas::set_selection( int x1, int x2, int y1, int y2 )
+{
+    _selection.x1 = x1;
+    _selection.x2 = x2;
+    _selection.y1 = y1;
+    _selection.y2 = y2;
+}
+
+/** Fix selection to where x1 <= x2 and y1 <= y2 */
+void
+Canvas::fix_selection( void )
+{
+    int tmp;
+
+    if ( _selection.x1 > _selection.x2 )
+    {
+        tmp = _selection.x1;
+        _selection.x1 = _selection.x2;
+        _selection.x2 = tmp;
+    }
+
+    if ( _selection.y1 > _selection.y2 )
+    {
+        tmp = _selection.y1;
+        _selection.y1 = _selection.y2;
+        _selection.y2 = tmp;
+    }
+}
 
 int
 Canvas::handle ( int m )
@@ -1335,8 +1324,6 @@ Canvas::handle ( int m )
 
     static int last_move_x = 0;
     static int last_move_y = 0;
-
-//    static bool range_select;
 
     int x, y;
     int processed = 1;
@@ -1373,11 +1360,6 @@ Canvas::handle ( int m )
         }
         case FL_KEYBOARD:
         {
-      
-/*             if ( Fl::event_state() & FL_ALT || Fl::event_state() & FL_CTRL ) */
-/*                 // this is more than a simple keypress. */
-/*                 return 0; */
-
             if ( Fl::event_state() & FL_CTRL )
             {
                 switch ( Fl::event_key() )
@@ -1447,10 +1429,6 @@ Canvas::handle ( int m )
                             /* case ' ': */
                             /*     transport.toggle(); */
                             /*     break; */
-
-#define IS_PATTERN (parent() == ui->pattern_tab)
-#define IS_PHRASE (parent() == ui->phrase_tab)
-#define IS_SEQUENCE (parent() == ui->sequence_tab)
                         case '<':
                             c->move_selected( LEFT, 1 );
                             break;
@@ -1499,34 +1477,22 @@ Canvas::handle ( int m )
             {
                 case 1:
                 {
+                    int dx = x;
+                    int dy = y;
+                    
+                    grid_pos( &dx, &dy );
+
                     if ( is_ruler_click() )
                     {
-                        c->start_cursor( x, y );
-                        //           return 1;
                         _selection_mode = SELECT_RANGE;
-                       
-                    }
+                        set_selection( dx, dx, 0, 128 );
 
-                    if ( _selection_mode )
-                    {
-                        drag_x = Fl::event_x();
-                        drag_y = Fl::event_y();
-                    
-                        _selection_rect.x1 = drag_x;
-                        _selection_rect.y1 = drag_y;
-                        _selection_rect.x2 = drag_x;
-                        _selection_rect.y2 = drag_y;
-
-                        if ( _selection_mode == SELECT_RANGE )
-                        {
-                            _selection_rect.y1 = 0;
-                            _selection_rect.y2 = 2000;
-                        }
+                        // Ctrl adds to selection
+                        if ( !Fl::event_ctrl() )
+                            grid()->select_none();
 
                         return 1;
                     }
-
-                    delete_note = true;
 
                     if ( Fl::event_ctrl() )
                     {
@@ -1534,11 +1500,6 @@ Canvas::handle ( int m )
                         processed = 2;
                         break;
                     }
-
-                    int dx = x;
-                    int dy = y;
-                    
-                    grid_pos( &dx, &dy );
 
                     int note;
                     if ( ( note = c->is_row_press() ) >= 0 )
@@ -1570,9 +1531,7 @@ Canvas::handle ( int m )
                             drag_note->note = dy;
                             drag_note->duration = this->m.grid->default_length();
                             drag_note->velocity = 64;
-                    
 
-                            
                             delete_note = false;
 
                             processed = 1;
@@ -1638,28 +1597,26 @@ Canvas::handle ( int m )
                     {
                         _selection_mode = SELECT_RECTANGLE;
                         {
-                            drag_x = Fl::event_x();
-                            drag_y = Fl::event_y();
-                        
-                            _selection_rect.x1 = drag_x;
-                            _selection_rect.y1 = drag_y;
-                            _selection_rect.x2 = drag_x;
-                            _selection_rect.y2 = drag_y;
+                            int dx = x;
+                            int dy = y;
+
+                            grid_pos( &dx, &dy );
+                            set_selection( dx, dx, dy, rtn( ntr( dy ) + 1 ) );
+
+                            drag_x = x;
+                            drag_y = y;
+
+                            // Ctrl adds to selection
+                            if ( !Fl::event_ctrl() )
+                                grid()->select_none();
+
                             signal_settings_change();
+
                             return 1;
                         }
                         
                         return 1;
-                        break;
-
-                  
                     }
-
-                    /* if ( Fl::event_state() & FL_SHIFT ) */
-                    /* { */
-                    /*     c->end_cursor( x, y ); */
-                    /*     break; */
-                    /* } */
                     break;
                 }
                 default:
@@ -1669,70 +1626,49 @@ Canvas::handle ( int m )
         }
         case FL_RELEASE:
         {
+            if ( _selection_mode )
+                fix_selection();
+
             if ( SELECT_RANGE == _selection_mode )
-            {
-                select_range();
+            {   // x1 == x2 if range not dragged far enough to count
+                if ( _selection.x1 == _selection.x2 )
+                    set_selection ( 0, 0, 0, 0 );
+                else select_range();
+
                 _selection_mode = SELECT_NONE;
+                damage(FL_DAMAGE_OVERLAY);
                 return 1;
             }
             else if ( SELECT_RECTANGLE == _selection_mode )
-            {
-                int X,Y,W,H;
-                
-                SelectionRect &s = _selection_rect;
-        
-                X = s.x1 < s.x2 ? s.x1 : s.x2;
-                Y = s.y1 < s.y2 ? s.y1 : s.y2;
-                W = s.x1 < s.x2 ? s.x2 - s.x1 : s.x1 - s.x2;
-                H = s.y1 < s.y2 ? s.y2 - s.y1 : s.y1 - s.y2;
-                
-                int endx = X + W;
-                int endy = Y + H;
-                int beginx = X;
-                int beginy = Y;
-                
-                grid_pos( &beginx, &beginy );
-                grid_pos( &endx, &endy );
-               
-                /* if ( is_ruler_click() ) */
-                /* { */
-                /*     grid()->select( beginx, endx ); */
-                /* } */
-                /* else */
-                {
-                    grid()->select( beginx, endx, beginy, endy );
-                }
+            {   // x1 == x2 if range not dragged far enough to count
+                if ( _selection.x1 == _selection.x2 )
+                    set_selection ( 0, 0, 0, 0 );
+                else grid()->select( _selection.x1, _selection.x2, _selection.y1, _selection.y2 );
 
                 _selection_mode = SELECT_NONE;
-
-                _selection_rect.x1 = 0;
-                _selection_rect.y1 = 0;
-                _selection_rect.x2 = 0;
-                _selection_rect.y2 = 0;
-
                 damage(FL_DAMAGE_OVERLAY);
                 signal_settings_change();
                 return 1;
             }
 
-            if ( delete_note )
+            if ( ghost_note )
             {
-                if ( ghost_note )
+                if ( delete_note )
                 {
                     damage_grid( ghost_note->start, ghost_note->note, ghost_note->duration, 1 );
 
                     delete ghost_note;
+                    delete_note = false;
                 }
-                ghost_note = 0;
-            }
-            else if ( ghost_note )
-            {
-                this->m.grid->put( this->m.grid->ts_to_x( ghost_note->start ), 
-                                   ghost_note->note,
-                                   ghost_note->duration,
-                                   ghost_note->velocity);
+                else
+                {
+                    this->m.grid->put( this->m.grid->ts_to_x( ghost_note->start ),
+                                       ghost_note->note,
+                                       ghost_note->duration,
+                                       ghost_note->velocity);
+                }
 
-                delete_note = false;
+                grid()->select_none();
 
                 delete ghost_note;
                 ghost_note = 0;
@@ -1742,9 +1678,7 @@ Canvas::handle ( int m )
                 delete drag_note;
             drag_note = 0;
 
-            if ( !_move_mode )
-                grid()->select_none();
-            else _move_mode = false;
+            _move_mode = false;
 
             break;
         }
@@ -1755,29 +1689,37 @@ Canvas::handle ( int m )
                 return 1;
 
             {
-                if ( _selection_mode )
-                {
-                    grid()->select_none();
-
-                    _selection_rect.x2 = x;
-                    _selection_rect.y2 = y;
-
-                    if ( SELECT_RANGE == _selection_mode )
-                    {
-                        _selection_rect.y2 = 2000;
-                        c->end_cursor( x, y );
-                    }
-
-                    damage(FL_DAMAGE_OVERLAY);
-                
-                    return 1;
-                }
-
-
                 int dx = x;
                 int dy = y;
 
                 grid_pos( &dx, &dy );
+
+                if ( _selection_mode )
+                {
+                    if ( dx >= _selection.x1 ) dx++;
+
+                    if ( _selection_mode == SELECT_RANGE )
+                    {
+                        if ( dx != _selection.x2 )
+                        {
+                            _selection.x2 = dx;
+                            damage(FL_DAMAGE_OVERLAY);
+                        }
+                    }
+                    else
+                    {
+                        if ( dy >= _selection.y1 ) dy = rtn( ntr( dy ) + 1 );
+
+                        if ( dx != _selection.x2 || dy != _selection.y2 )
+                        {
+                            _selection.x2 = dx;
+                            _selection.y2 = dy;
+                            damage(FL_DAMAGE_OVERLAY);
+                        }
+                    }
+                
+                    return 1;
+                }
 
                 if ( _move_mode )
                 { 

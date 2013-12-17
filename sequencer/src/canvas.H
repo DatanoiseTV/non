@@ -40,7 +40,7 @@ class Canvas : public Fl_Group, public trackable
         int x1,y1,x2,y2;
             };
 
-    SelectionRect _selection_rect;
+    SelectionRect _selection;
 
     int _selection_mode;
     bool _move_mode;
@@ -82,9 +82,6 @@ class Canvas : public Fl_Group, public trackable
 
         Viewport *vp;
         int w, h;
-
-        uint p1, p2;                                            /* range cursors */
-        uint p3, p4;                                            /* row cursors */
     } m;
 
     bool is_ruler_click ( void ) const;
@@ -97,7 +94,6 @@ class Canvas : public Fl_Group, public trackable
     void draw_ruler ( void );
 
     void _reset ( void );
-    void _lr ( void );
 
     bool viewable_x ( int x );
 
@@ -170,17 +166,16 @@ public:
     char * notes ( void );
     int playhead_moved ( void );
 
-    void start_cursor ( int x, int y );
-    void end_cursor ( int x, int y );
-
     void delete_time ( void );
     void insert_time ( void );
 
     void move_selected ( int dir, int n );
     void selected_velocity ( int v );
 
-    virtual int handle ( int m );
+    void set_selection( int x1, int x2, int y1, int y2 );
+    void fix_selection( void );
 
+    virtual int handle ( int m );
 };
 
 inline int
