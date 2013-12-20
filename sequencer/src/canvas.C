@@ -676,32 +676,6 @@ Canvas::draw_overlay ( void )
 
     fl_pop_clip();
 
-// Ruler start/end range markers removed (maybe forever)
-#if 0
-    if ( _selection_mode == SELECT_RANGE )
-    {
-        int X = m.origin_x + m.margin_left;
-        int Y = m.origin_y;
-        int H = ruler_height;
-        int P1, P2;
-
-        P1 = min ( _selection.x1, _selection.x2 );
-        P2 = max ( _selection.x1, _selection.x2 ) - 1;
-
-        if ( P1 >= 0 )
-        {
-            fl_color( fl_color_add_alpha ( FL_GREEN, 200 ) );
-            fl_rectf( X + (m.div_w * P1), Y + H / 2, m.div_w, H / 2 );
-        }
-
-        if ( P2 >= 0 && P2 != P1 )
-        {
-            fl_color( fl_color_add_alpha ( FL_RED, 200 ) );
-            fl_rectf( X + (m.div_w * P2), Y + H / 2, m.div_w, H / 2 );
-        }
-    }
-#endif
-
     panzoomer->draw_overlay();
 }
 
