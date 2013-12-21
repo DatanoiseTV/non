@@ -1642,8 +1642,6 @@ Canvas::handle ( int m )
                 if ( delete_note )
                 {
                     damage_grid( ghost_note->start, ghost_note->note, ghost_note->duration, 1 );
-
-                    delete ghost_note;
                     delete_note = false;
                 }
                 else
