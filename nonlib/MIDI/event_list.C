@@ -675,14 +675,13 @@ namespace MIDI
     {
         event_list *temp = new event_list( );
 
-        _head = temp->_head;
-        _tail = temp->_tail;
-
         FOR_ALL( n )
             temp->insert( n );
 
-        temp->_head = NULL;
+        _head = temp->_head;
+        _tail = temp->_tail;
 
+        temp->_head = NULL;
         delete temp;
 
         relink();
