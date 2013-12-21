@@ -1065,7 +1065,7 @@ Canvas::select_range ( void )
     if ( _selection.y1 == 0 && _selection.y2 == 128 )
         m.grid->select( _selection.x1, _selection.x2 );
     else
-        m.grid->select( _selection.x1, _selection.x2, rtn( _selection.y1 ), rtn( _selection.y2 ) );
+        m.grid->select( _selection.x1, _selection.x2, _selection.y1, _selection.y2 );
 }
 
 void
@@ -1080,7 +1080,7 @@ Canvas::crop ( void )
     if ( _selection.y1 == 0 && _selection.y2 == 128 )
         m.grid->crop( _selection.x1, _selection.x2 );
     else
-        m.grid->crop( _selection.x1, _selection.x2, rtn( _selection.y1 ), rtn( _selection.y2 ) );
+        m.grid->crop( _selection.x1, _selection.x2, _selection.y1, _selection.y2 );
 
     m.vp->x = 0;
 
