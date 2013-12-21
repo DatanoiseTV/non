@@ -488,8 +488,12 @@ namespace MIDI
     event_list::nudge_selected ( long o )
     {
         if ( o < 0 )
-            if ( selection_min() < (tick_t)( 0 - o ) )
-                return;
+        {
+            tick_t min = selection_min();
+
+            if ( min < (tick_t)( 0 - o ) )
+                o = -min;               // Clamp movement past start
+        }
 
         if ( o < 0 )
         {
