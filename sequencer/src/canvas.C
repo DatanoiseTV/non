@@ -562,8 +562,6 @@ Canvas::damage_grid ( tick_t x, int y, tick_t w, int h = 1 )
            m.div_h * h );
 }
 
-
-
 void
 Canvas::draw_dash ( tick_t x, int y, tick_t w, int color, int selected ) const
 {
@@ -1013,31 +1011,45 @@ Canvas::move_selected ( int dir, int n )
             m.grid->nudge_selected( n );
             break;
         case LEFT:
-            m.grid->nudge_selected( 0 - n );
+            m.grid->nudge_selected( 0 - n );            // handles clamping
             break;
         case UP:
         case DOWN:
         {
-            /* row-compaction makes this a little complicated */
             event_list *el = m.grid->events();
+            int row_min = 127, row_max = 0, row;
 
-            /* FIXME: don't allow movement beyond the edges!  */
+            // Find range of rows of selected notes for current row compaction
+            for ( event *e = el->first() ; e ; e = e->next() )
+            {
+                if ( ! e->is_note_on() ) continue;
 
-/*             int hi, lo; */
+                row = ntr ( m.grid->note_to_y ( e->note() ) );        // Convert to row
+                if ( row == -1 ) continue;
 
-/*             m.grid->selected_hi_lo_note( &hi, &lo ); */
+                if ( row > row_max ) row_max = row;
+                if ( row < row_min ) row_min = row;
+            }
 
-/*             hi = ntr( hi ) > 0 ? ntr( hi ) :  */
-
-/*             if ( m.grid->y_to_note( ntr( hi ) ) ) */
-
+            if ( row_min == 127 && row_max == 0 )
+                return;         // No matching events?
 
             if ( dir == UP )
-                for ( int y = 0; y <= m.maxh; ++y )
+            {
+                if ( n > row_min ) n = row_min;
+                if ( n == 0 ) return;
+
+                for ( int y = row_min; y <= row_max; ++y )
                     el->rewrite_selected( m.grid->y_to_note( rtn( y ) ), m.grid->y_to_note( rtn( y - n ) ) );
+            }
             else
-                for ( int y = m.maxh; y >= 0; --y )
+            {
+                if ( n >= m.maxh - row_max ) n = m.maxh - row_max - 1;
+                if ( n == 0 ) return;
+
+                for ( int y = row_max; y >= row_min; --y )
                     el->rewrite_selected( m.grid->y_to_note( rtn( y ) ), m.grid->y_to_note( rtn( y + n ) ) );
+            }
 
             m.grid->events( el );
 
@@ -1700,7 +1712,7 @@ Canvas::handle ( int m )
                     int odx = drag_x;
                     int ody = drag_y;
                     grid_pos( &odx, &ody );
-               
+
                     if ( last_move_x != dx )
                     {
                         //this->m.grid->move_selected( dx - move_xoffset );
@@ -1708,8 +1720,10 @@ Canvas::handle ( int m )
                             move_selected( RIGHT, dx - last_move_x );
                         else
                             move_selected( LEFT, last_move_x - dx );
+
+                        last_move_x = dx;
                     }
-    
+
                     if ( dy >= 0 && dy <= 127 )
                     {
                         dy = ntr( dy );
@@ -1721,8 +1735,7 @@ Canvas::handle ( int m )
 
                         last_move_y = dy;
                     }
-                
-                    last_move_x = dx;
+
                     return 1;
                 }
       
