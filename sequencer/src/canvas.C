@@ -192,6 +192,7 @@ Canvas::Canvas ( int X, int Y, int W, int H, const char *L ) : Fl_Group( X,Y,W,H
     }
 
     m.origin_x = m.origin_y = m.height = m.width = m.div_w = m.div_h = m.margin_top = m.margin_left = m.playhead = m.w = m.h = 0;
+    _selection.x1 = _selection.x2 = _selection.y1 = _selection.y2 = 0;
 
     m.margin_top = ruler_height;
 
