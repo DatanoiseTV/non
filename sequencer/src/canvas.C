@@ -1320,8 +1320,8 @@ Canvas::handle ( int m )
 
     static int drag_x;
     static int drag_y;
+    static int drag_velocity;
     static bool delete_note;
-    static note_properties *drag_note;
 
     switch ( m )
     {
@@ -1507,18 +1507,13 @@ Canvas::handle ( int m )
                         if ( ! this->m.grid->is_set( dx,dy ))
                         {
                             ghost_note = new note_properties;
-                            drag_note = new note_properties;
 
                             ghost_note->start = this->m.grid->x_to_ts( dx );
                             ghost_note->note = dy;
                             ghost_note->duration = this->m.grid->default_length();
-                            ghost_note->velocity = 64;
+                            ghost_note->velocity = this->m.grid->default_velocity();
 
-                            drag_note->start = this->m.grid->x_to_ts( dx );
-                            drag_note->note = dy;
-                            drag_note->duration = this->m.grid->default_length();
-                            drag_note->velocity = 64;
-
+                            drag_velocity = ghost_note->velocity;
                             delete_note = false;
 
                             processed = 1;
@@ -1539,11 +1534,10 @@ Canvas::handle ( int m )
                             else
                             {
                                 ghost_note = new note_properties;
-                                drag_note = new note_properties;
                                 this->m.grid->get_note_properties( dx, dy, ghost_note );
-                                this->m.grid->get_note_properties( dx, dy, drag_note );
                                 this->m.grid->del( dx, dy );
-                                
+                                drag_velocity = ghost_note->velocity;
+
                                 delete_note = true;
                             }
                         }
@@ -1659,10 +1653,6 @@ Canvas::handle ( int m )
                 ghost_note = 0;
             }
 
-            if ( drag_note )
-                delete drag_note;
-            drag_note = 0;
-
             _move_mode = false;
 
             break;
@@ -1745,48 +1735,45 @@ Canvas::handle ( int m )
                     int ody = drag_y;
                     int odx = drag_x;
                     
-                    if ( drag_note )
-                    {
-                        grid_pos( &odx, &ody );
+                    grid_pos( &odx, &ody );
                         
-                        /* cursor must leave the row to begin adjusting velocity. */
-                        if ( ody != dy )
+                    /* cursor must leave the row to begin adjusting velocity. */
+                    if ( ody != dy )
+                    {
+                        int velocity;
+
+                        velocity = drag_velocity + drag_y - y;
+
+                        if ( velocity < 1 )
+                            velocity = 1;
+                        else if ( velocity > 127 )
+                            velocity = 127;
+
+                        if ( ghost_note->velocity != velocity )
                         {
-                            int velocity;
-
-                            velocity = drag_note->velocity + drag_y - y;
-                            
-                            if ( velocity < 1 )
-                                velocity = 1;
-                            else if ( velocity > 127 )
-                                velocity = 127;
-
-                            if ( ghost_note->velocity != velocity )
-                            {
-                              ghost_note->velocity = velocity;
-                              damage_grid( ghost_note->start, ghost_note->note,
-                                           ghost_note->duration, 1 );
-                              processed = 2;
-                            }
+                            ghost_note->velocity = velocity;
+                            damage_grid( ghost_note->start, ghost_note->note,
+                                         ghost_note->duration, 1 );
+                            processed = 2;
                         }
                     }
 
                     if ( dx != odx )
+                    {
+                        tick_t duration = this->m.grid->x_to_ts( dx ) - ghost_note->start;
+                        tick_t min = this->m.grid->x_to_ts ( 1 );
+
+                        if ( duration < min )
+                            duration = min;
+
+                        if ( ghost_note->duration != duration )
                         {
-                            tick_t duration = this->m.grid->x_to_ts( dx ) - ghost_note->start;
-                            tick_t min = this->m.grid->x_to_ts ( 1 );
-
-                            if ( duration < min )
-                                duration = min;
-
-                            if ( ghost_note->duration != duration )
-                            {
-                                damage_grid( ghost_note->start, ghost_note->note,
-                                             max ( duration, ghost_note->duration ), 1 );
-                                ghost_note->duration = duration;
-                                processed = 2;
-                            }
+                            damage_grid( ghost_note->start, ghost_note->note,
+                                         max ( duration, ghost_note->duration ), 1 );
+                            ghost_note->duration = duration;
+                            processed = 2;
                         }
+                    }
 
                     delete_note = false;
                 }
