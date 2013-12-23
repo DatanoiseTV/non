@@ -46,7 +46,8 @@ class pattern : public Grid
 
 //    int _key;
 
-    int _note;
+    tick_t _duration;
+    int _velocity;
 
     void _add ( void );
 
@@ -95,8 +96,10 @@ public:
     void port ( int p );
     int channel ( void ) const;
     void channel ( int c );
-    int note ( void ) const;
-    void note ( int n );
+    tick_t duration ( void ) const;
+    void duration ( tick_t n );
+    int velocity ( void ) const;
+    void velocity ( int n );
 
     void mode ( int n );
     int mode ( void ) const;
@@ -113,7 +116,11 @@ public:
 
     virtual tick_t default_length ( void ) const
         {
-            return PPQN * 4 / _note;
+            return _duration;
         }
 
+    virtual int default_velocity ( void ) const
+        {
+            return _velocity;
+        }
 };

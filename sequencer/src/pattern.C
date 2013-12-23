@@ -47,7 +47,8 @@ pattern::pattern ( void )
 
     _ppqn = 4;
     _bpb  = 4;
-    _note = 8;
+    _duration = PPQN / 4;
+    _velocity = 127;
 
     _queued = -1;
 
@@ -88,7 +89,7 @@ pattern::~pattern ( void )
 /* copy constructor */
 pattern::pattern ( const pattern &rhs ) : Grid( rhs )
 {
-    _note    = rhs._note;
+    _duration    = rhs._duration;
     _port    = rhs._port;
     _channel = rhs._channel;
     _queued  = rhs._queued;
@@ -701,16 +702,28 @@ pattern::channel ( int c )
     _channel = c;
 }
 
-int
-pattern::note ( void ) const
+tick_t
+pattern::duration ( void ) const
 {
-    return _note;
+    return _duration;
 }
 
 void
-pattern::note ( int n )
+pattern::duration ( tick_t n )
 {
-    _note = n;
+    _duration = n;
+}
+
+int
+pattern::velocity ( void ) const
+{
+    return _velocity;
+}
+
+void
+pattern::velocity ( int n )
+{
+    _velocity = n;
 }
 
 

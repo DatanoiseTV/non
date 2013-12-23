@@ -270,6 +270,10 @@ public:
             return PPQN;
         }
 
+    virtual int default_velocity ( void ) const
+        {
+            return 127;
+        }
 };
 
 

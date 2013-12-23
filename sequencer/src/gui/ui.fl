@@ -792,7 +792,7 @@ o->maximum( phrase::phrases() );}
             xywh {0 730 867 55} box FLAT_BOX color 47
           } {
             Fl_Group {} {open
-              xywh {5 733 420 44}
+              xywh {5 733 504 51}
               code0 {o->resizable(0);}
             } {
               Fl_Input pattern_name_field {
@@ -837,16 +837,108 @@ o->maximum( pattern::patterns() );}
               Fl_Button pattern_selection_mode {
                 label Select
                 callback {pattern_canvas_widget->selection_mode( o->value() );}
-                tooltip {Enable selection mode (you can also just hold down shift and drag the mouse)} xywh {260 733 45 44} type Toggle selection_color 5 labelsize 10
+                tooltip {Enable selection mode (you can also just hold down shift and drag the mouse)} xywh {260 734 45 44} type Toggle selection_color 5 labelsize 10
               }
               Fl_Value_Slider velocity_slider {
                 label Velocity
-                callback {pattern_canvas_widget->selected_velocity( o->value() );} selected
-                xywh {310 742 110 18} type {Horz Fill} labelsize 10 align 1 maximum 127 value 64 textsize 9
+                callback {pattern_canvas_widget->selected_velocity( o->value() );
+((pattern*)(pattern_canvas_widget->grid()))->velocity( o->value() );} selected
+                xywh {356 736 127 18} type {Horz Fill} labelsize 10 align 4 minimum 1 maximum 127 step 1 value 127 textsize 9
+              }
+              Fl_Value_Slider duration_slider {
+                label Duration
+                callback {pattern *pat = (pattern*)(pattern_canvas_widget->grid());
+tick_t divw = pat->x_to_ts ( 1 );
+tick_t mult;
+
+switch ( duration_choice->value() )
+{
+    case 0:		// Snap to integer
+    case 1:		// Beats
+        mult = divw;
+        break;
+    case 2:		// Bars
+        mult = PPQN * 4;
+        break;
+    case 3:		// Ticks
+        mult = 1.0;
+        break;
+}
+
+pat->duration( floor( o->value() * mult + 0.5 ) );}
+                xywh {356 761 90 20} type {Horz Fill} labelsize 10 align 4 minimum 1 maximum 32 step 1 value 1 textsize 9
+              }
+              Fl_Choice duration_choice {
+                callback {pattern *pat = (pattern*)(pattern_canvas_widget->grid());
+tick_t divw = pat->x_to_ts( 1 );
+
+double min, max, step;
+tick_t mult;
+
+switch ( o->value() )
+{
+    case 0:		// Snap to integer
+        min = 1.0;
+        max = 32.0;
+        step = 1.0;
+        mult = divw;
+        break;
+    case 1:		// Beats
+        min = 0.01;
+        max = 32.0;
+        step = 0.01;
+        mult = divw;
+        break;
+    case 2:		// Bars
+        min = 0.01;
+        max = 2.0;
+        step = 0.01;
+        mult = PPQN * 4;
+        break;
+    case 3:		// Ticks
+        min = 1.0;
+        max = PPQN * 4 + 2;
+        step = 1.0;
+        mult = 1.0;
+        break;
+}
+
+tick_t dur = pat->duration();
+double value = dur / mult;
+
+if ( o->value() == 0 )	// If Snap then round to integer
+    value = floor( value + 0.5 );
+
+if ( value < min ) value = min;
+else if ( value > max ) value = max;
+
+duration_slider->range( min, max );
+duration_slider->step( step );
+duration_slider->value ( value );
+
+pat->duration ( floor( value * mult + 0.5 ) );} open
+                xywh {447 761 60 20} down_box BORDER_BOX labelsize 10 when 1 textsize 11
+              } {
+                MenuItem {} {
+                  label Snap
+                  xywh {0 0 100 20}
+                }
+                MenuItem {} {
+                  label Beats
+                  xywh {0 0 100 20}
+                }
+                MenuItem {} {
+                  label Bars
+                  xywh {0 0 100 20}
+                }
+                MenuItem {} {
+                  label Ticks
+                  xywh {0 0 100 20}
+                }
               }
             }
             Fl_Group {} {open
-              xywh {455 731 409 54}
+              xywh {531 731 334 54}
             } {
               Fl_Output mapping_text {
                 label Mapping
@@ -876,7 +968,7 @@ if ( 0 == strncmp( picked, "Scale", strlen( "Scale" ) ) )
 	pattern_canvas_widget->changed_mapping();
 
 	pattern_key_combo->activate();
-}} open
+}}
                 xywh {640 761 30 19} labeltype NO_LABEL labelsize 10 textsize 12
                 code0 {update_mapping_menu();}
               } {
@@ -893,7 +985,7 @@ if ( 0 == strncmp( picked, "Scale", strlen( "Scale" ) ) )
                 label {&Key}
                 callback {((pattern*)pattern_canvas_widget->grid())->mapping.key( o->value() );
 
-pattern_canvas_widget->changed_mapping();}
+pattern_canvas_widget->changed_mapping();} open
                 xywh {700 761 75 19} down_box BORDER_BOX labelsize 10 when 1 textsize 11
               } {
                 MenuItem {} {
@@ -945,60 +1037,10 @@ pattern_canvas_widget->changed_mapping();}
                   xywh {20 20 40 25} labelsize 11
                 }
               }
-              Fl_Choice pattern_note_combo {
-                label {&Note 1/}
-                callback {((pattern*)pattern_canvas_widget->grid())->note( atoi( o->menu()[ o->value() ].text ));}
-                xywh {715 736 45 19} down_box BORDER_BOX labelsize 10 when 1 textsize 12
-              } {
-                MenuItem {} {
-                  label 1
-                  xywh {0 0 40 25} labelsize 11
-                }
-                MenuItem {} {
-                  label 2
-                  xywh {10 10 40 25} labelsize 11
-                }
-                MenuItem {} {
-                  label 4
-                  xywh {20 20 40 25} labelsize 11
-                }
-                MenuItem {} {
-                  label 8
-                  xywh {30 30 40 25} labelsize 11
-                }
-                MenuItem {} {
-                  label 16
-                  xywh {40 40 40 25} labelsize 11
-                }
-                MenuItem {} {
-                  label 32
-                  xywh {50 50 40 25} labelsize 11
-                }
-                MenuItem {} {
-                  label 64
-                  xywh {60 60 40 25} labelsize 11 divider
-                }
-                MenuItem {} {
-                  label 3
-                  xywh {60 60 40 25} labelsize 11
-                }
-                MenuItem {} {
-                  label 6
-                  xywh {70 70 40 25} labelsize 11
-                }
-                MenuItem {} {
-                  label 12
-                  xywh {80 80 40 25} labelsize 11
-                }
-                MenuItem {} {
-                  label 24
-                  xywh {90 90 40 25} labelsize 11
-                }
-              }
               Fl_Choice pattern_res_combo {
                 label {&Resolution 1/}
                 callback {pattern_canvas_widget->grid()->resolution( atoi( o->menu()[ o->value() ].text ));}
-                xywh {615 736 55 19} down_box BORDER_BOX labelsize 10 when 1 textsize 12
+                xywh {700 736 55 19} down_box BORDER_BOX labelsize 10 when 1 textsize 12
               } {
                 MenuItem {} {
                   label 1
@@ -1063,8 +1105,8 @@ pattern_canvas_widget->changed_mapping();}
               } {}
               Fl_Input_Choice pattern_bars_choice {
                 label {Bars:}
-                callback {((pattern *)pattern_canvas_widget->grid())->bars( atoi( o->value() ) );} open
-                xywh {486 736 55 19} labelsize 10 textsize 12
+                callback {((pattern *)pattern_canvas_widget->grid())->bars( atoi( o->value() ) );}
+                xywh {564 736 55 19} labelsize 10 textsize 12
                 code0 {char pat[4]; for ( int i = 1; i <= 16; i++ ) { snprintf( pat, 3, "%i", i ); o->add( pat ); }}
                 code1 {for ( int i = 32; i <= 256; i <<= 1 ) { snprintf( pat, sizeof(pat), "%i", i ); o->add( pat ); }}
               } {}
@@ -1460,7 +1502,8 @@ detach_button->value( 0 );}
       } {}
     }
   }
-  Function {update_pattern_widgets()} {} {
+  Function {update_pattern_widgets()} {open
+  } {
     code {if ( ! pattern_settings_group )
 	return;
 
@@ -1497,7 +1540,6 @@ mapping_text->value( g->mapping.name() );
 
 
 
-pattern_note_combo->value( find_numeric_menu_item( menu_pattern_note_combo, g->note() ));
 pattern_res_combo->value( find_numeric_menu_item( menu_pattern_res_combo, g->resolution() ));
 /*
 if ( g->notes() )

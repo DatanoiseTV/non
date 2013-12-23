@@ -17,6 +17,8 @@
 /* Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
 /*******************************************************************************/
 
+#include <math.h>
+
 #include "smf.H"
 #include "phrase.H"
 #include "pattern.H"
@@ -484,9 +486,16 @@ smf::write_pattern_info ( const pattern *p )
         write_meta_event( smf::TEXT, p->notes() );
 
     char *s = p->viewport.dump();
+    tick_t dur = p->duration();
+    tick_t note;
 
-    snprintf( pat, sizeof( pat ), "Non: xywh=%s, ppqn=%d, key=%d, note=%d, mode=%d",
-              s, p->ppqn(), p->mapping.key(), p->note(), p->mode() );
+    note = PPQN * 4 / dur;
+
+    if ( note - floor( note ) > 0.000000001 )           // Should be small enough to detect integer factors of a bar
+        note = PPQN / 2;        // Old default duration value
+
+    snprintf( pat, sizeof( pat ), "Non: xywh=%s, ppqn=%d, key=%d, note=%d, mode=%d, dur=%d",
+              s, p->ppqn(), p->mapping.key(), (int)note, p->mode(), (int)dur );
 
     free( s );
 
@@ -860,14 +869,19 @@ smf::read_pattern_info ( pattern *p )
 
                 data[l] = '\0';
 
-                int ppqn, key, note, mode;
+                int ppqn, key, note, mode, dur, count;
                 char *s;
 
-                if ( 5 != sscanf( data, "Non: xywh=%a[0-9:], ppqn=%d, key=%d, note=%d, mode=%d",
-                                  &s, &ppqn, &key, &note, &mode ) )
+                count = sscanf( data, "Non: xywh=%a[0-9:], ppqn=%d, key=%d, note=%d, mode=%d, dur=%d",
+                                &s, &ppqn, &key, &note, &mode, &dur );
+
+                if ( count != 5 && count != 6 )
                     WARNING( "Invalid pattern info event" );
                 else
                 {
+                    if ( count == 5 )
+                        dur = PPQN * 4 / note;
+
                     p->viewport.read( s );
                     free( s );
 
@@ -876,7 +890,7 @@ smf::read_pattern_info ( pattern *p )
                     if ( key > 0 )
                         p->mapping.key( key );
 
-                    p->note( note );
+                    p->duration( dur );
                     p->mode( mode );
                 }
                 break;
