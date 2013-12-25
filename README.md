@@ -9,18 +9,20 @@ Non reinvents the DAW.  Powerful enough to form a complete studio, fast and ligh
 
 Documentation
 ===
-Here you will find some Non Sequencer user interface documentation as I figure out how to use it.  This will include un-official improvements that might not be in the main non branch, though I'll try to indicate them with a star (*).
+Here you will find some Non Sequencer user interface documentation, which is evolving as I figure out how to use it.  Also, this branch is currently exploring some fairly drastic user interface changes from the main Non branch.  This documentation is meant to reflect these changes.
+
 
 Pattern Editor
 ===
-* Left click to place a note
-* Left click on a note and drag vertically to change velocity.
-* Left click on a note and drag horizontally to change note length.
-* Right mouse drag in grid to selection a box region.
+* Left Click to place a note (drag to change placement).
+* Left Click on a note and drag to move it (changes time and note).
+* ALT-Left Click on a note and drag to change velocity/duration (vertical/horizontal).
+* ALT-Left Click on a note without dragging to delete it.
+* CTRL-Left Click drag in grid to select a box region.
 * Left click drag horizontally on ruler to select range.
 * CTRL left click on a note to toggle selection of it.
-* Hold down CTRL while selecting a range/region to add to selection (*).
-* Notes will be pasted to last range selection or the beginning of the pattern if no selection.
+* Hold down SHIFT while selecting a range/region to add to selection.
+* Notes will be pasted to last selection area or the beginning of the pattern if no selection.
 
 Key Bindings
 ===
