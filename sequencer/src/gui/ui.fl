@@ -855,6 +855,7 @@ switch ( duration_choice->value() )
 {
     case 0:		// Snap to integer
     case 1:		// Beats
+    default:
         mult = divw;
         break;
     case 2:		// Bars
@@ -878,6 +879,7 @@ tick_t mult;
 switch ( o->value() )
 {
     case 0:		// Snap to integer
+    default:
         min = 1.0;
         max = 32.0;
         step = 1.0;
@@ -1479,6 +1481,13 @@ w->paste();}
 
 w->grid()->undo();}
               xywh {110 110 34 18} shortcut 0x4007a
+            }
+            MenuItem {} {
+              label Redo
+              callback {Canvas *w = current_canvas();
+
+w->grid()->redo();}
+              xywh {110 110 34 18} shortcut 0x5007a
             }
           }
         }

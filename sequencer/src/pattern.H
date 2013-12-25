@@ -80,7 +80,7 @@ public:
     void trigger ( tick_t start, tick_t end );
     void trigger ( void );
     void stop ( void ) const;
-    void play ( tick_t start, tick_t end ) const;
+    void play ( tick_t start, tick_t end );
 
     void load ( smf *f );
 

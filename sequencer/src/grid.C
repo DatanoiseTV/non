@@ -36,16 +36,17 @@ Grid::Grid ( void )
     _number = 0;
     _height = 0;
 
-    _rd = new data;
-    _rw = NULL;
+    data *d = new data;
+    d->length = 0;
 
-    // we need to initialize it here.
-    data *d = (data *)_rd;
+    _ro_data = d;
+    _in_rt_thread = false;
+    _rw_data = NULL;
+    _undo_group = NULL;
+    _last_undo_group = NULL;
 
     _mode = 0;
     _locked = 0;
-
-    d->length = 0;
 
     _bpb = 4;
     /* how many grid positions there are per beat */
@@ -69,18 +70,18 @@ Grid::~Grid ( void )
     if ( _notes )
         free( _notes );
 
-    if ( _rw )
-        delete _rw;
-    if ( _rd )
-        delete _rd;
+    if ( _rw_data )
+        delete _rw_data;
+    if ( _ro_data )
+        delete _ro_data;
 
 }
 
 /* copy constructor */
 Grid::Grid ( const Grid &rhs ) : sigc::trackable()
 {
-    _rd = new data( *rhs._rd );
-    _rw = NULL;
+    _ro_data = new data( *rhs._ro_data );
+    _rw_data = NULL;
 
     _name = rhs._name ? strdup( rhs._name ) : NULL;
     _notes = rhs._notes ? strdup( rhs._notes ) : NULL;
@@ -100,12 +101,32 @@ Grid::Grid ( const Grid &rhs ) : sigc::trackable()
     viewport = rhs.viewport;
 }
 
+/** "acquire" pointer to read only data.  Indicates that RT thread is
+ * accessing read only data (not safe to free value in _ro_data) and returns
+ * the "current" read only data value atomically.
+ */
+data *
+Grid::_rt_acquire_ro_data ( void )
+{
+    _in_rt_thread.store( true );
+    return _ro_data.load();
+}
+
+/** "release" indication that the RT thread is accessing read only event data,
+ * and the UI thread can now safely free previous _ro_data (after assigning new _ro_data).
+ */
+void
+Grid::_rt_release_ro_data ( void )
+{
+    _in_rt_thread.store( false );
+}
+
 void
 Grid::lock ( void )
 {
     if ( ! _locked++ )
     {
-        _rw = new data( *_rd );
+        _rw_data = new data( *_ro_data.load() );
         _change_count = 0;
     }
 }
@@ -115,24 +136,47 @@ Grid::_unlock ( bool no_undo )
 {
     if ( 0 == --_locked )
     {
+        bool free_data = true;
+
         if ( !no_undo )
-        {
-            _history.push_back( const_cast<data *>( _rd ) );
-
-            if ( _history.size() > MAX_UNDO + 1 )
+        {   // Store undo state if undo group is not the same as the last one (only store the first undo state in a group)
+            if ( ! _undo_group || ! _last_undo_group || strcmp( _undo_group, _last_undo_group ) != 0 )
             {
-                data *d = _history.front();
+                _undo_history.push_back( const_cast<data *>( _ro_data.load() ) );
+                free_data = false;
 
-                delete d;
-
-                _history.pop_front();
+                if ( _undo_history.size() > MAX_UNDO + 1 )
+                {
+                    _history_free.push_front( _undo_history.front() );     // In the real world, it is probably safe to free this, but we do it safely below
+                    _undo_history.pop_front();
+                }
             }
+
+            _last_undo_group = _undo_group;
+            _undo_group = NULL;
         }
 
-        // swap the copy back in (atomically).
-        _rd = (const data *)_rw;
+        if ( free_data )
+            _history_free.push_front( _ro_data.load() );
 
-        _rw = NULL;
+        // Destroy any redo history
+        _history_free.splice( _history_free.begin(), _redo_history );
+
+        // swap the copy back in (atomically).
+        _ro_data.store( (data *)_rw_data );
+        _rw_data = NULL;
+
+        // Free old history data only if there is no potential that the RT thread is still accessing it
+        if( _history_free.size() > 0 && ! _in_rt_thread.load() )
+        {
+            data *d;
+
+            while ( ( d = _history_free.front() ) )
+            {
+                delete d;
+                _history_free.pop_front();
+            }
+        }
 
         do_change_updates();
     }
@@ -223,14 +267,14 @@ Grid::change_update_all ( void )
 event *
 Grid::_event ( int x, int y, bool write ) const
 {
-    const data *d = const_cast< data * >(_rd);
+    const event_list *r;
 
-    const event_list *r = write ? &_rw->events : &d->events;
+    if ( write ) r = &_rw_data->events;
+    else r = &const_cast< data * >(_ro_data.load())->events;
 
     tick_t xt = x_to_ts(x);
 
     if ( r->empty() )
-/* || xt  > _rd->length ) */
         return NULL;
 
     int note = y_to_note( y );
@@ -264,7 +308,7 @@ Grid::clear ( void )
 {
     lock();
 
-    _rw->events.clear();
+    _rw_data->events.clear();
     change_update_all();
 
     unlock();
@@ -282,9 +326,9 @@ Grid::del ( int x, int y )
         change_update ( e );
 
         if ( e->linked() )
-            _rw->events.remove( e->link() );
+            _rw_data->events.remove( e->link() );
 
-        _rw->events.remove( e );
+        _rw_data->events.remove( e );
     }
 
     unlock();
@@ -293,7 +337,7 @@ Grid::del ( int x, int y )
 int
 Grid::next_note_x ( int x ) const
 {
-    for ( const event *e = _rd->events.first(); e; e = e->next() )
+    for ( const event *e = _ro_data.load()->events.first(); e; e = e->next() )
         if ( e->is_note_on() && (ts_to_x( e->timestamp() ) > (uint)x ) )
             return ts_to_x( e->timestamp() );
 
@@ -303,7 +347,7 @@ Grid::next_note_x ( int x ) const
 int
 Grid::prev_note_x ( int x ) const
 {
-    for ( const event *e = _rd->events.last(); e; e = e->prev() )
+    for ( const event *e = _ro_data.load()->events.last(); e; e = e->prev() )
         if ( e->is_note_on() && (ts_to_x( e->timestamp() ) < (uint)x) )
             return ts_to_x( e->timestamp() );
 
@@ -314,10 +358,10 @@ Grid::prev_note_x ( int x ) const
 void
 Grid::_fix_length ( void )
 {
-    tick_t beats = (unsigned long)(_rw->length / PPQN);
-    tick_t rem = (unsigned long)_rw->length % PPQN;
+    tick_t beats = (unsigned long)(_rw_data->length / PPQN);
+    tick_t rem = (unsigned long)_rw_data->length % PPQN;
 
-    _rw->length = (rem ? (beats + 1) : beats) * PPQN;
+    _rw_data->length = (rem ? (beats + 1) : beats) * PPQN;
 }
 
 /**  Trim the length of the grid to the last event */
@@ -326,22 +370,22 @@ Grid::trim ( void )
 {
     lock();
 
-    event *e = _rw->events.last();
+    event *e = _rw_data->events.last();
 
     if ( e )
     {
         tick_t ts = e->timestamp();
-        tick_t old_length = _rw->length;
+        tick_t old_length = _rw_data->length;
 
-        _rw->length = ts;
+        _rw_data->length = ts;
 
         _fix_length();
 
-        if ( _rw->length != old_length )
+        if ( _rw_data->length != old_length )
         {
-            if ( _rw->length > old_length )
-                change_update( old_length, 0, _rw->length - old_length, 128 );
-            else change_update( _rw->length, 0, old_length - _rw->length, 128 );
+            if ( _rw_data->length > old_length )
+                change_update( old_length, 0, _rw_data->length - old_length, 128 );
+            else change_update( _rw_data->length, 0, old_length - _rw_data->length, 128 );
         }
     }
 
@@ -353,7 +397,7 @@ Grid::fit ( void )
 {
     int hi, lo;
 
-    _rd->events.hi_lo_note( &hi, &lo );
+    _ro_data.load()->events.hi_lo_note( &hi, &lo );
 
     viewport.h = abs( hi - lo ) + 1;
 
@@ -366,18 +410,18 @@ Grid::expand ( void )
 {
     lock();
 
-    event *e = _rw->events.last();
+    event *e = _rw_data->events.last();
 
     if ( e )
     {
         tick_t ts = e->timestamp();
-        tick_t old_length = _rw->length;
+        tick_t old_length = _rw_data->length;
 
-        if ( ts > _rw->length )
+        if ( ts > _rw_data->length )
         {
-            _rw->length = ts;
+            _rw_data->length = ts;
             _fix_length();
-            change_update( old_length, 0, _rw->length - old_length, 128 );
+            change_update( old_length, 0, _rw_data->length - old_length, 128 );
         }
     }
 
@@ -424,8 +468,8 @@ Grid::put ( int x, int y, tick_t l, int velocity )
     off->note_velocity( velocity );
     off->link( on );
 
-    _rw->events.insert( on );
-    _rw->events.insert( off );
+    _rw_data->events.insert( on );
+    _rw_data->events.insert( off );
 
     change_update ( on );
     expand();
@@ -460,8 +504,8 @@ Grid::move ( int x, int y, int nx, int ny )
 
         change_update( on );
 
-        _rw->events.unlink( on  );
-        _rw->events.unlink( off );
+        _rw_data->events.unlink( on  );
+        _rw_data->events.unlink( off );
 
         on->note( y_to_note( ny ) );
 
@@ -469,8 +513,8 @@ Grid::move ( int x, int y, int nx, int ny )
         on->timestamp( x_to_ts( nx ) );
         on->note_duration( l );
 
-        _rw->events.insert( off );
-        _rw->events.insert( on );
+        _rw_data->events.insert( off );
+        _rw_data->events.insert( on );
 
         change_update( on );
     }
@@ -529,7 +573,7 @@ Grid::adj_duration ( int x, int y, int l )
             if ( new_len != len )
             {
                 e->note_duration( new_len );
-                _rw->events.sort( e->link() );
+                _rw_data->events.sort( e->link() );
                 change_update( e->timestamp(), note_to_y( e->note() ),
                                max( len, new_len ), 1 );
             }
@@ -559,7 +603,7 @@ Grid::set_duration ( int x, int y, int ex )
         if ( new_len != len )
         {
             e->note_duration( new_len );
-            _rw->events.sort( e->link() );
+            _rw_data->events.sort( e->link() );
             change_update( e->timestamp(), note_to_y( e->note() ),
                            max( len, new_len ), 1 );
         }
@@ -627,7 +671,7 @@ Grid::set_end ( int x, int y, int ex )
         if ( new_len > x_to_ts( 1 ) && new_len != len )
         {
             e->note_duration( new_len );
-            _rw->events.sort( e->link() );
+            _rw_data->events.sort( e->link() );
             change_update( e->timestamp(), note_to_y( e->note() ),
                            max( len, new_len ), 1 );
         }
@@ -660,17 +704,17 @@ Grid::toggle_select ( int x, int y )
 void
 Grid::copy ( void )
 {
-    _rd->events.copy_selected( &_clipboard );
+    _ro_data.load()->events.copy_selected( &_clipboard );
 }
 
 void
 Grid::cut ( void )
 {
-    _rd->events.copy_selected( &_clipboard );
+    _ro_data.load()->events.copy_selected( &_clipboard );
 
     lock();
 
-    _rw->events.remove_selected();
+    _rw_data->events.remove_selected();
 
     change_update_all();
 
@@ -682,10 +726,10 @@ Grid::selected_velocity ( int v )
 {
     lock();
 
-    _rw->events.selected_velocity( v );
+    _rw_data->events.selected_velocity( v );
     change_update_all();
 
-    unlock_no_undo();
+    unlock();
 }
 
 void
@@ -693,7 +737,7 @@ Grid::paste ( int offset )
 {
     lock();
     
-    _rw->events.paste( x_to_ts( offset ), &_clipboard );
+    _rw_data->events.paste( x_to_ts( offset ), &_clipboard );
 
     change_update_all();
     expand();
@@ -711,7 +755,7 @@ Grid::insert_time ( int l, int r )
 
     lock();
 
-    _rw->events.insert_time( start, end - start );
+    _rw_data->events.insert_time( start, end - start );
 
     change_update_all();
     expand();
@@ -728,7 +772,7 @@ Grid::select ( int l, int r )
 
     lock();
 
-    _rw->events.select( start, end );
+    _rw_data->events.select( start, end );
     change_update_all();
 
     unlock_no_undo();
@@ -743,7 +787,7 @@ Grid::select ( int l, int r, int t, int b )
 
     lock();
 
-    _rw->events.select( start, end, y_to_note( t) , y_to_note( b ) );
+    _rw_data->events.select( start, end, y_to_note( t) , y_to_note( b ) );
     change_update_all();
 
     unlock_no_undo();
@@ -758,7 +802,7 @@ Grid::delete_time ( int l, int r )
 
     lock();
 
-    _rw->events.delete_time( start, end );
+    _rw_data->events.delete_time( start, end );
     change_update_all();
 
     unlock();
@@ -769,7 +813,7 @@ Grid::select_none ( void )
 {
     lock();
 
-    if ( _rw->events.select_none() )
+    if ( _rw_data->events.select_none() )
         change_update_all();
 
     unlock_no_undo();
@@ -780,7 +824,7 @@ Grid::select_all ( void )
 {
     lock();
 
-    _rw->events.select_all();
+    _rw_data->events.select_all();
     change_update_all();
 
     unlock_no_undo();
@@ -791,7 +835,7 @@ Grid::invert_selection ( void )
 {
     lock();
 
-    _rw->events.invert_selection();
+    _rw_data->events.invert_selection();
     change_update_all();
 
     unlock_no_undo();
@@ -802,7 +846,7 @@ Grid::delete_selected ( void )
 {
     lock();
 
-    _rw->events.remove_selected();
+    _rw_data->events.remove_selected();
     change_update_all();
 
     unlock();
@@ -820,7 +864,7 @@ Grid::nudge_selected ( int l )
 
 //    MESSAGE( "moving by %ld", o );
 
-    _rw->events.nudge_selected( o );
+    _rw_data->events.nudge_selected( o );
     change_update_all();
 
     unlock();
@@ -835,7 +879,7 @@ Grid::move_selected ( int l )
 
 //    MESSAGE( "moving by %ld", o );
 
-    _rw->events.move_selected( o );
+    _rw_data->events.move_selected( o );
     change_update_all();
 
     unlock();
@@ -846,8 +890,8 @@ Grid::crop ( int l, int r )
 {
     lock();
 
-    if ( (uint)r < ts_to_x( _rw->length ) )
-        delete_time( r, ts_to_x( _rw->length ) );
+    if ( (uint)r < ts_to_x( _rw_data->length ) )
+        delete_time( r, ts_to_x( _rw_data->length ) );
     if ( l > 0 )
         delete_time( 0, l );
 
@@ -862,14 +906,14 @@ Grid::crop ( int l, int r, int t, int b )
 {
     lock();
 
-    _rw->events.push_selection();
+    _rw_data->events.push_selection();
 
     select( l, r, t, b );
 
-    _rw->events.invert_selection();
-    _rw->events.remove_selected();
+    _rw_data->events.invert_selection();
+    _rw_data->events.remove_selected();
 
-    _rw->events.pop_selection();
+    _rw_data->events.pop_selection();
 
     crop( l, r );       // Does a change all update
 
@@ -879,20 +923,20 @@ Grid::crop ( int l, int r, int t, int b )
 int
 Grid::min_selected ( void ) const
 {
-    return ts_to_x( _rd->events.selection_min() );
+    return ts_to_x( _ro_data.load()->events.selection_min() );
 }
 
 void
 Grid::_relink ( void )
 {
-    _rw->events.relink();
+    _rw_data->events.relink();
 }
 
 /* Dump the event list -- used by pattern / phrase dumppers */
 void
 Grid::dump ( smf *f, int channel ) const
 {
-    data *d = const_cast<data *>(_rd);
+    data *d = const_cast<data *>(_ro_data.load());
 
     midievent me;
 
@@ -908,7 +952,7 @@ Grid::dump ( smf *f, int channel ) const
 void
 Grid::print ( void ) const
 {
-    data *d = const_cast<data *>(_rd);
+    data *d = const_cast<data *>(_ro_data.load());
 
     for ( event *e = d->events.first(); e; e = e->next() )
         e->print();
@@ -921,7 +965,7 @@ Grid::print ( void ) const
 void
 Grid::draw_notes ( draw_note_func_t draw_note, void *userdata ) const 
 {
-    data *d = const_cast< data *>( _rd );
+    data *d = const_cast< data *>( _ro_data.load() );
 
     for ( const event *e = d->events.first(); e; e = e->next() )
     {
@@ -979,7 +1023,7 @@ Grid::height ( int h )
 tick_t
 Grid::length ( void ) const
 {
-    return _rd->length;
+    return _ro_data.load()->length;
 }
 
 void
@@ -987,7 +1031,7 @@ Grid::length ( tick_t l )
 {
     lock();
 
-    _rw->length = l;
+    _rw_data->length = l;
     change_update_all();
 
     unlock();
@@ -998,7 +1042,7 @@ Grid::bars ( int n )
 {
     lock();
     
-    _rw->length = n * _bpb * PPQN;
+    _rw_data->length = n * _bpb * PPQN;
     _fix_length();
     change_update_all();
 
@@ -1016,7 +1060,7 @@ Grid::bars ( void ) const
 int
 Grid::beats ( void ) const
 {
-    return  _rd->length / PPQN;
+    return  _ro_data.load()->length / PPQN;
 }
 
 int
@@ -1114,28 +1158,68 @@ Grid::mode ( void ) const
 void
 Grid::undo ( void )
 {
-    if ( ! _history.size() )
+    if ( ! _undo_history.size() )
         return;
 
-    data *d = _history.back();
+    data *d = _undo_history.back();
     
-    _history.pop_back();
+    _undo_history.pop_back();
+
+    _redo_history.push_back( _ro_data.load() );
 
     // swap the copy back in (atomically).
-    _rd = (const data *)d;
-    
-    _rw = NULL;
+    _ro_data.store( (data *)d );
+    _rw_data = NULL;
 
     change_update_all();
     do_change_updates();
+}
+
+void
+Grid::redo ( void )
+{
+    if ( ! _redo_history.size() )
+        return;
+
+    data *d = _redo_history.back();
+    
+    _redo_history.pop_back();
+
+    _undo_history.push_back( _ro_data.load() );
+
+    // swap the copy back in (atomically).
+    _ro_data.store( (data *)d );
+    _rw_data = NULL;
+
+    change_update_all();
+    do_change_updates();
+}
+
+/** Set undo group for next undo save state (stored during unlock()).
+ * /group/ must be a statically allocated string.
+ * Only the first undo state is stored, additional ones are dropped.
+ * The group is cleared after the next call to unlock().
+ */
+void
+Grid::set_undo_group ( const char *group )
+{
+  _undo_group = group;
+}
+
+/** Resets the undo group and last undo group, essentially stopping any
+ * additional undo states from being dropped.
+ */
+void
+Grid::reset_undo_group ( void )
+{
+  _undo_group = _last_undo_group = NULL;
 }
 
 /** return a pointer to a copy of grid's event list in raw form */
 event_list *
 Grid::events ( void ) const
 {
-    data * d = const_cast< data * >( _rd );
-
+    data * d = const_cast< data * >( _ro_data.load() );
     return new event_list( d->events );
 }
 
@@ -1145,7 +1229,7 @@ Grid::events ( const event_list * el )
 {
     lock();
 
-    _rw->events = *el;
+    _rw_data->events = *el;
 
     change_update_all();
     unlock();

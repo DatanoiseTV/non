@@ -113,7 +113,8 @@ def configure(conf):
     global_flags = [ '-pthread',
                      '-D_LARGEFILE64_SOURCE',
                      '-D_FILE_OFFSET_BITS=64',
-                     '-D_GNU_SOURCE' ]
+                     '-D_GNU_SOURCE',
+                     '-std=c++0x' ]
 
     
     conf.env.append_value('CFLAGS', global_flags )

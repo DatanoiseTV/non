@@ -169,12 +169,10 @@ phrase::trigger ( tick_t start, tick_t end )
 
 // FIXME: so much of this is copied from pattern.C, there has
 // to be a way to share more of this code.
+// This function executes in RT thread
 void
 phrase::play ( tick_t start, tick_t end )
 {
-    /* get our own copy of this pointer so UI thread can change it. */
-    const data *d = const_cast< const data * >(_rd);
-
     if ( start > _end )
     {
         _playing = false;
@@ -188,6 +186,9 @@ phrase::play ( tick_t start, tick_t end )
         end = _end;
 
     _playing = true;
+
+    /* get our own copy of this pointer so UI thread can change it. */
+    const data *d = _rt_acquire_ro_data();
 
     // where we are in the absolute time
     tick_t tick = start - _start;
@@ -235,7 +236,9 @@ try_again:
 
     MESSAGE( "out of events, resetting to satisfy loop" );
 
-done: ;
+done:
+
+    _rt_release_ro_data();      // Done with accessing read only event data
 }
 
 
@@ -250,11 +253,11 @@ phrase::load ( smf *f )
 
     list <midievent> *me = f->read_track_events( &len );
 
-    _rw->events = *me;
+    _rw_data->events = *me;
     delete me;
 
     if ( len )
-        _rw->length = len;
+        _rw_data->length = len;
 
     unlock();
 }

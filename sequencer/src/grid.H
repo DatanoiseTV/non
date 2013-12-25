@@ -32,6 +32,7 @@ const int MAX_UNDO = 50;
 #define MAX_CHANGE_UPDATES 2    // Maximum number of change updates to signal
 
 #include <list>
+#include <atomic>
 
 #include <sigc++/sigc++.h>
 using namespace sigc;
@@ -62,8 +63,6 @@ struct data {
             length = rhs.length;
             state = rhs.state;
         }
-/*     data() { MESSAGE( "allocating new editable data" ); }       */
-    //   ~data() { MESSAGE( "deleting old undo data, freeing at least %d bytes.", events.size() * sizeof ( event ) + sizeof ( list <event> )); }
 };
 
 
@@ -131,12 +130,15 @@ protected:
 
     mutable volatile int    _mode;                                       /* mute, solo */
 
-    // FIXME: shouldn't this be "volatile"?
-//    const volatile data *_rd;                                   /* read only data used by RT thread */
-    const data * volatile _rd;
-    data *_rw;                                                  /* temporary writable copy used by UI thread */
+    std::atomic<data *> _ro_data;                               /* atomic pointer to read only data used by RT thread (volatile pointer to constant data) */
+    std::atomic_bool _in_rt_thread;                             /* atomic integer indicating that the RT thread could be accessing current (or possibly prior) read only event data */
+    data *_rw_data;                                             /* temporary writable copy used by UI thread */
+    const char *_undo_group;                                    /* Current active undo group assigned from set_undo_group() (statically allocated string) */
+    const char *_last_undo_group;                               /* Last undo group (statically allocated string) */
 
-    list <data *> _history;
+    list <data *> _undo_history;                                /* Undo history */
+    list <data *> _redo_history;                                /* Redo history */
+    list <data *> _history_free;                                /* List of data objects which need to be freed (by UI thread when _in_rt_thread is 0), not safe to free latest _rd data if RT thread is accessing it */
 
     void _unlock ( bool no_undo );
     void _remove_marked ( void );
@@ -144,6 +146,8 @@ protected:
     void _link ( void );
     void _relink ( void );
     void _fix_length ( void );
+    data *_rt_acquire_ro_data ( void );
+    void _rt_release_ro_data ( void );
 
 
 private:
@@ -264,6 +268,9 @@ public:
     void paste ( int offset );
 
     void undo ( void );
+    void redo ( void );
+    void set_undo_group ( const char *group );
+    void reset_undo_group ( void );
 
     virtual tick_t default_length ( void ) const
         {

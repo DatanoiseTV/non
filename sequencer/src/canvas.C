@@ -995,9 +995,11 @@ Canvas::move_selected ( int dir, int n )
     switch ( dir )
     {
         case RIGHT:
+            m.grid->set_undo_group ("move");
             m.grid->nudge_selected( n );
             break;
         case LEFT:
+            m.grid->set_undo_group ("move");
             m.grid->nudge_selected( 0 - n );            // handles clamping
             break;
         case UP:
@@ -1038,6 +1040,7 @@ Canvas::move_selected ( int dir, int n )
                     el->rewrite_selected( m.grid->y_to_note( rtn( y ) ), m.grid->y_to_note( rtn( y + n ) ) );
             }
 
+            m.grid->set_undo_group ("move");
             m.grid->events( el );
 
             delete el;
@@ -1516,6 +1519,8 @@ Canvas::handle ( int ev )
                 {
                     m.grid->select_none();
 
+                    m.grid->set_undo_group ("move");    // Group new notes with any drag moves
+
                     // Add new note, select it exclusively and enable move mode
                     this->m.grid->put( dx, dy,
                                        this->m.grid->default_length(),
@@ -1672,6 +1677,7 @@ Canvas::handle ( int ev )
                     if ( duration != drag_note.duration )
                     {
                         drag_note.duration = duration;
+                        m.grid->set_undo_group ("duration");
                         m.grid->set_duration ( odx, ody, m.grid->ts_to_x( duration ) ); // FIXME - Need to use selection and optimize this
                     }
                 }
@@ -1689,6 +1695,7 @@ Canvas::handle ( int ev )
                     if ( velocity != drag_note.velocity )
                     {
                         drag_note.velocity = velocity;
+                        m.grid->set_undo_group ("velocity");
                         m.grid->selected_velocity( velocity );  // FIXME - Optimize this (full redraw)
                     }
                 }
@@ -1740,11 +1747,13 @@ Canvas::handle ( int ev )
                 if ( ! ( hdrag_threshold || vdrag_threshold ) )
                     m.grid->del( odx, ody );
 
+                m.grid->reset_undo_group();
                 _event_state = EVENT_STATE_NONE;
                 return 1;
             }
             else if ( _event_state == EVENT_STATE_MOVE )
             {
+                m.grid->reset_undo_group();
                 _event_state = EVENT_STATE_NONE;
                 return 1;
             }

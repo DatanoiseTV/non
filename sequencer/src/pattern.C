@@ -55,8 +55,7 @@ pattern::pattern ( void )
     int _bars = 2;
 
     // we need to reinitalize this.
-    data *d = const_cast< data * >( _rd );
-
+    data *d = const_cast< data * >( _ro_data.load() );
     d->length = x_to_ts( _bpb * _ppqn * _bars );
 
 //    mapping.open( Mapping::INSTRUMENT, "Default" );
@@ -222,12 +221,12 @@ pattern::record_event ( const midievent *me )
 
                     /* place within loop */
                     on->timestamp( 
-                        fmod( on->timestamp() - p->_start, p->_rw->length ) );
+                        fmod( on->timestamp() - p->_start, p->_rw_data->length ) );
 
                     on->link( off );
                     on->note_duration( duration );
 
-                    p->_rw->events.mix( on );
+                    p->_rw_data->events.mix( on );
 
                     break;
                 }
@@ -239,10 +238,10 @@ pattern::record_event ( const midievent *me )
 
                 // if ( ! filter )
 
-                e->timestamp( fmod( e->timestamp(), p->_rw->length ) );
+                e->timestamp( fmod( e->timestamp(), p->_rw_data->length ) );
 
                 el->unlink( e );
-                p->_rw->events.insert( e );
+                p->_rw_data->events.insert( e );
             }
         
         p->unlock();
@@ -412,15 +411,11 @@ pattern::queue ( void ) const
 /* WARNING: runs in the RT thread! */
 // output notes from /start/ to /end/ (absolute)
 void
-pattern::play ( tick_t start, tick_t end ) const
+pattern::play ( tick_t start, tick_t end )
 {
-    /* get our own copy of this pointer so UI thread can change it. */
-    const data *d = const_cast< const data * >(_rd);
-
     if ( start > _end )
     {
         stop();
-//        WARNING( "attempt to play a loop (pattern %d) that has ended (%lu, %lu)", number(), start, _end );
         return;
     }
     else
@@ -433,6 +428,9 @@ pattern::play ( tick_t start, tick_t end ) const
 
     if ( end > _end )
         end = _end;
+
+    /* get our own copy of this pointer so UI thread can change it. */
+    const data *d = _rt_acquire_ro_data();
 
     // where we are in the absolute time
     tick_t tick = start - _start;
@@ -544,6 +542,8 @@ try_again:
 
 done:
 
+    _rt_release_ro_data();      // Done with accessing read only event data
+
     if ( _queued >= 0 && reset_queued )
     {
         _mode = _queued;
@@ -601,11 +601,11 @@ pattern::load ( smf *f )
         _channel = e->front().channel();
 
     /* copy events into pattern */
-    _rw->events = *e;
+    _rw_data->events = *e;
     delete e;
 
     if ( len )
-        _rw->length = len;
+        _rw_data->length = len;
 
     unlock();
 
