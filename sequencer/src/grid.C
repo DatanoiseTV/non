@@ -769,8 +769,8 @@ Grid::select_none ( void )
 {
     lock();
 
-    _rw->events.select_none();
-    change_update_all();
+    if ( _rw->events.select_none() )
+        change_update_all();
 
     unlock_no_undo();
 }
