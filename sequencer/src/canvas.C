@@ -1658,25 +1658,8 @@ Canvas::handle ( int ev )
                     
                 grid_pos( &odx, &ody );
 
-                // Vertical drag threshold already or just now met?
-                if ( vdrag_threshold || abs( drag_y - y ) >= DRAG_THRESHOLD )
-                {
-                    int velocity = drag_velocity + drag_y - y;
-
-                    vdrag_threshold = true;
-
-                    if ( velocity < 1 ) velocity = 1;
-                    else if ( velocity > 127 ) velocity = 127;
-
-                    if ( velocity != drag_note.velocity )
-                    {
-                        drag_note.velocity = velocity;
-                        m.grid->selected_velocity( velocity );  // FIXME - Optimize this (full redraw)
-                    }
-                }
-
-                // Horizontal drag threshold already or just now met?
-                if ( hdrag_threshold || abs( drag_x - x ) >= DRAG_THRESHOLD )
+                // Horizontal drag threshold already or just now met? (exclusive vertical or horizontal drag)
+                if ( !vdrag_threshold && ( hdrag_threshold || abs( drag_x - x ) >= DRAG_THRESHOLD ) )
                 {
                     hdrag_threshold = true;
 
@@ -1690,6 +1673,23 @@ Canvas::handle ( int ev )
                     {
                         drag_note.duration = duration;
                         m.grid->set_duration ( odx, ody, m.grid->ts_to_x( duration ) ); // FIXME - Need to use selection and optimize this
+                    }
+                }
+
+                // Vertical drag threshold already or just now met? (exclusive vertical or horizontal drag)
+                if ( !hdrag_threshold && ( vdrag_threshold || abs( drag_y - y ) >= DRAG_THRESHOLD ) )
+                {
+                    int velocity = drag_velocity + drag_y - y;
+
+                    vdrag_threshold = true;
+
+                    if ( velocity < 1 ) velocity = 1;
+                    else if ( velocity > 127 ) velocity = 127;
+
+                    if ( velocity != drag_note.velocity )
+                    {
+                        drag_note.velocity = velocity;
+                        m.grid->selected_velocity( velocity );  // FIXME - Optimize this (full redraw)
                     }
                 }
 
