@@ -42,8 +42,7 @@ class Canvas : public Fl_Group, public trackable
 
     SelectionRect _selection;
 
-    int _selection_mode;
-    bool _move_mode;
+    int _event_state;                                            /* Current event state (for state machine in ::handle()) */
     Canvas_Panzoomer *panzoomer;
     Fl_Slider *vzoom;
 
@@ -104,18 +103,26 @@ class Canvas : public Fl_Group, public trackable
     static void draw_clip ( void *v, int X, int Y, int W, int H );
     void draw_clip ( void );
 
+/* Current event state (for state machine in ::handle()) */
 enum {
-    SELECT_NONE = 0,
-    SELECT_RECTANGLE,
-    SELECT_RANGE
+    EVENT_STATE_NONE = 0,
+    EVENT_STATE_SELECT_RECTANGLE,      // Rectangle selection
+    EVENT_STATE_SELECT_RANGE,          // Range selection
+    EVENT_STATE_MOVE,                  // Moving notes
+    EVENT_STATE_ALT                    // Note ALT click/drag (delete or change velocity/duration)
 };
 
 public:
 
-    bool selection_mode ( void ) const { return _selection_mode; }
+    bool selection_mode ( void ) const
+        {
+            return _event_state == EVENT_STATE_SELECT_RECTANGLE
+                || _event_state == EVENT_STATE_SELECT_RANGE;
+        }
+
     void selection_mode ( bool b )
         {
-            _selection_mode = b ? SELECT_RECTANGLE : SELECT_NONE;
+            _event_state = b ? EVENT_STATE_SELECT_RECTANGLE : EVENT_STATE_NONE;
         }
 
     enum { OFF, ON, TOGGLE };
@@ -148,7 +155,6 @@ public:
     bool grid_pos ( int *x, int *y ) const;
     int is_row_press ( void ) const;
     void unset ( int x, int y );
-    void adj_color ( int x, int y, int n );
     void adj_length ( int x, int y, int n );
     void set_end ( int x, int y, int n );
     void select ( int x, int y );
@@ -175,7 +181,7 @@ public:
     void set_selection( int x1, int x2, int y1, int y2 );
     void fix_selection( void );
 
-    virtual int handle ( int m );
+    virtual int handle ( int ev );
 };
 
 inline int

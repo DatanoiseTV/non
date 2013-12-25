@@ -41,6 +41,8 @@ extern Fl_Color velocity_colors[];
 extern Fl_Color velocity_select_colors[];
 const int ruler_height = 14;
 
+const int DRAG_THRESHOLD = 4;   // Pixel threshold for certain drag operations to kick in (ALT drag velocity/duration changes)
+
 #define IS_PATTERN (parent() == ui->pattern_tab)
 #define IS_PHRASE (parent() == ui->phrase_tab)
 #define IS_SEQUENCE (parent() == ui->sequence_tab)
@@ -153,12 +155,9 @@ public:
 
 };
 
-static note_properties *ghost_note = 0;
-
 Canvas::Canvas ( int X, int Y, int W, int H, const char *L ) : Fl_Group( X,Y,W,H,L )
 {
-    _selection_mode = SELECT_NONE;
-    _move_mode = false;
+    _event_state = EVENT_STATE_NONE;
 
     { Fl_Box *o = new Fl_Box( X, Y, W, H - 75 );
         /* this is a dummy group where the canvas goes */
@@ -670,7 +669,10 @@ Canvas::draw_overlay ( void )
         W = (X2 - X1) * m.div_w;
         X1 = X1 * m.div_w + m.origin_x + m.margin_left;
 
-        fl_rect( X1, Y1, W, H, _selection_mode ? FL_BLUE : fl_color_add_alpha ( FL_BLUE, 100 ) );
+        bool select_state = _event_state == EVENT_STATE_SELECT_RECTANGLE
+            || _event_state == EVENT_STATE_SELECT_RANGE;
+
+        fl_rect( X1, Y1, W, H, select_state ? FL_BLUE : fl_color_add_alpha ( FL_BLUE, 100 ) );
     }
 
     fl_pop_clip();
@@ -758,13 +760,6 @@ Canvas::draw_clip ( void )
     }
 
     m.grid->draw_notes( draw_dash, this );
-
-    if ( ghost_note )
-        draw_dash( ghost_note->start,
-                   ghost_note->note,
-                   ghost_note->duration,
-                   ghost_note->velocity,
-                   1 );
 
     fl_color( fl_color_add_alpha( fl_rgb_color( 127,127,127 ), 50 ));
 
@@ -965,15 +960,6 @@ bool
 Canvas::is_ruler_click ( void ) const
 {
     return Fl::event_y() < m.origin_y + m.margin_top;
-}
-
-void
-Canvas::adj_color ( int x, int y, int n )
-{
-    if ( ! grid_pos( &x, &y ) )
-        return;
-
-    m.grid->adj_velocity( x, y, n );
 }
 
 void
@@ -1305,25 +1291,22 @@ Canvas::fix_selection( void )
 }
 
 int
-Canvas::handle ( int m )
+Canvas::handle ( int ev )
 {
-    Canvas *c = this;
-
     static int last_move_x = 0;
     static int last_move_y = 0;
+    static int drag_x;
+    static int drag_y;
+    static int drag_velocity;           // Drag start note velocity
+    static bool hdrag_threshold;        // Set to TRUE if horizontal drag threshold reached
+    static bool vdrag_threshold;        // Set to TRUE if vertical drag threshold reached
+    static note_properties drag_note;
 
     int x, y;
-    int processed = 1;
-
     x = Fl::event_x();
     y = Fl::event_y();
 
-    static int drag_x;
-    static int drag_y;
-    static int drag_velocity;
-    static bool delete_note;
-
-    switch ( m )
+    switch ( ev )
     {
         case FL_FOCUS:
         case FL_UNFOCUS:
@@ -1343,98 +1326,99 @@ Canvas::handle ( int m )
                 fl_cursor( FL_CURSOR_DEFAULT );
 
             return 1;
-            break;
         }
         case FL_KEYBOARD:
         {
+            if ( _event_state != EVENT_STATE_NONE )     // Ignore key presses when in an event state to simplify things
+                return 1;
+
             if ( Fl::event_state() & FL_CTRL )
             {
                 switch ( Fl::event_key() )
                 {
                     case FL_Delete:
-                        c->delete_time();
+                        delete_time();
                         break;
                     case FL_Insert:
-                        c->insert_time();
+                        insert_time();
                         break;
                     case FL_Right:
-                        c->pan( TO_NEXT_NOTE, 0 );
+                        pan( TO_NEXT_NOTE, 0 );
                         break;
                     case FL_Left:
-                        c->pan( TO_PREV_NOTE, 0 );
+                        pan( TO_PREV_NOTE, 0 );
                         break;
                     default:
-                        return 0;
+                        return Fl_Group::handle( ev );
                 }
             }
-            else
-                if ( Fl::event_state() & FL_ALT )
-                    return 0;
+            else if ( Fl::event_state() & FL_ALT )
+                break;
 
             switch ( Fl::event_key() )
             {
                 case FL_Left:
-                    c->pan( LEFT, 1 );
+                    pan( LEFT, 1 );
                     break;
                 case FL_Right:
-                    c->pan( RIGHT, 1 );
+                    pan( RIGHT, 1 );
                     break;
                 case FL_Up:
-                    c->pan( UP, 1 );
+                    pan( UP, 1 );
                     break;
                 case FL_Down:
-                    c->pan( DOWN, 1 );
+                    pan( DOWN, 1 );
                     break;
                 default:
                     /* have to do this to get shifted keys */
                     switch ( *Fl::event_text() )
                     {
                         case 'f':
-                            c->pan( TO_PLAYHEAD, 0 );
+                            pan( TO_PLAYHEAD, 0 );
                             break;
                         case 'r':
-                            c->select_range();
+                            select_range();
                             break;
                         case 'q':
-                            c->grid()->select_none();
+                            grid()->select_none();
                             break;
                         case 'i':
-                            c->invert_selection();
+                            invert_selection();
                             break;
                             /* case '1': */
-                            /*     c->h_zoom( 2.0f ); */
+                            /*     h_zoom( 2.0f ); */
                             /*     break; */
                             /* case '2': */
-                            /*     c->h_zoom( 0.5f ); */
+                            /*     h_zoom( 0.5f ); */
                             /*     break; */
                             /* case '3': */
-                            /*     c->v_zoom( 2.0f ); */
+                            /*     v_zoom( 2.0f ); */
                             /*     break; */
                             /* case '4': */
-                            /*     c->v_zoom( 0.5f ); */
+                            /*     v_zoom( 0.5f ); */
                             /*     break; */
                             /* case ' ': */
                             /*     transport.toggle(); */
                             /*     break; */
                         case '<':
-                            c->move_selected( LEFT, 1 );
+                            move_selected( LEFT, 1 );
                             break;
                         case '>':
-                            c->move_selected( RIGHT, 1 );
+                            move_selected( RIGHT, 1 );
                             break;
                         case ',':
-                            c->move_selected( UP, 1 );
+                            move_selected( UP, 1 );
                             break;
                         case '.':
-                            c->move_selected( DOWN, 1 );
+                            move_selected( DOWN, 1 );
                             break;
                         case 'C':
-                            c->crop();
+                            crop();
                             break;
                         case 'd':
                         {
                             MESSAGE( "duplicating thing" );
-                            c->grid( c->grid()->clone() );
+                            grid( grid()->clone() );
 
                             // number of phrases may have changed.
                             ui->update_sequence_widgets();
@@ -1443,354 +1427,328 @@ Canvas::handle ( int m )
 
                         }
                         case 'D':
-                            c->duplicate_range();
+                            duplicate_range();
                             break;
                         case 't':
-                            c->grid()->trim();
+                            grid()->trim();
                             break;
                         default:
-                            processed = 0;
-                            break;
+                            return Fl_Group::handle( ev );
                     }
-                    break;
+
+                    return 1;
             }
-            break;
         }
-        case FL_PUSH:
+
+        case FL_PUSH:           // Mouse button press
         {
             Fl::focus(this);
 
-            switch ( Fl::event_button() )
+            if ( Fl::event_button() == 1 )      // Left mouse button press?
             {
-                case 1:
-                {
-                    int dx = x;
-                    int dy = y;
+                int dx = x;
+                int dy = y;
                     
-                    grid_pos( &dx, &dy );
+                grid_pos( &dx, &dy );
 
-                    if ( is_ruler_click() )
-                    {
-                        _selection_mode = SELECT_RANGE;
-                        set_selection( dx, dx, 0, 128 );
-
-                        // Ctrl adds to selection
-                        if ( !Fl::event_ctrl() )
-                            grid()->select_none();
-
-                        return 1;
-                    }
-
-                    if ( Fl::event_ctrl() )
-                    {
-                        c->select( x, y );
-                        processed = 2;
-                        break;
-                    }
-
-                    int note;
-                    if ( ( note = c->is_row_press() ) >= 0 )
-                    {
-                        if ( IS_PATTERN )
-                            ((pattern *)c->grid())->row_name_press( note );
-                        
-                        processed = 2;
-                        break;
-                    }
-
-                    if ( Fl::event_inside( this->x() + this->m.margin_left,
-                                           this->y() + this->m.margin_top,
-                                           this->w() - this->m.margin_left,
-                                           ( this->h() - this->m.margin_top ) - this->panzoomer->h() ) )
-                    {
-
-                        if ( ! this->m.grid->is_set( dx,dy ))
-                        {
-                            ghost_note = new note_properties;
-
-                            ghost_note->start = this->m.grid->x_to_ts( dx );
-                            ghost_note->note = dy;
-                            ghost_note->duration = this->m.grid->default_length();
-                            ghost_note->velocity = this->m.grid->default_velocity();
-
-                            drag_velocity = ghost_note->velocity;
-                            delete_note = false;
-
-                            processed = 1;
-                            break;
-                        }
-                        else
-                        {
-                            note_properties np;
-                            this->m.grid->get_note_properties( dx, dy, &np );
-
-                            if ( np.selected )
-                            {
-                                _move_mode = true;
-                                /* initiate move */
-                                last_move_x = dx;
-                                last_move_y = ntr( dy );
-                            }
-                            else
-                            {
-                                ghost_note = new note_properties;
-                                this->m.grid->get_note_properties( dx, dy, ghost_note );
-                                this->m.grid->del( dx, dy );
-                                drag_velocity = ghost_note->velocity;
-
-                                delete_note = true;
-                            }
-                        }
-
-                        this->m.grid->get_start( &dx, &dy );                    
-
-                        drag_x = x;
-                        drag_y = y;
-                    
-                        take_focus();
-                    }
-                    else
-                        processed = 0;
-
-                    break;
-                }
-                case 3:
+                if ( is_ruler_click() )         // Click on ruler - range select
                 {
-                    int note;
-                    if ( ( note = is_row_press() ) >= 0 )
-                    {
-                        /* inside the note headings */
-
-                        DMESSAGE( "click on row %d", note );
-                        if ( IS_PATTERN )
-                        {
-                            Instrument *i = ((pattern *)c->grid())->mapping.instrument();
-
-                            if ( i )
-                            {
-                                ui->edit_instrument_row( i, note );
-
-                                c->changed_mapping();
-                            }
-                        }
-                    }
-                    else
-                    {
-                        _selection_mode = SELECT_RECTANGLE;
-                        {
-                            int dx = x;
-                            int dy = y;
-
-                            grid_pos( &dx, &dy );
-                            set_selection( dx, dx, dy, rtn( ntr( dy ) + 1 ) );
-
-                            drag_x = x;
-                            drag_y = y;
-
-                            // Ctrl adds to selection
-                            if ( !Fl::event_ctrl() )
-                                grid()->select_none();
-
-                            signal_settings_change();
-
-                            return 1;
-                        }
-                        
-                        return 1;
-                    }
-                    break;
+                    _event_state = EVENT_STATE_SELECT_RANGE;
+                    set_selection( dx, dx, 0, 128 );
+                    return 1;
                 }
-                default:
-                    processed = 0;
+
+                int note;
+                if ( ( note = is_row_press() ) >= 0 )        // Row name click?
+                {
+                    if ( IS_PATTERN )
+                        ((pattern *)grid())->row_name_press( note );
+
+                    return 1;                        
+                }
+
+                // Click not on note area?
+                if ( ! Fl::event_inside( this->x() + this->m.margin_left,
+                                         this->y() + this->m.margin_top,
+                                         this->w() - this->m.margin_left,
+                                         ( this->h() - this->m.margin_top ) - this->panzoomer->h() ) )
+                    break;
+
+                bool note_clicked = this->m.grid->is_set( dx,dy );
+
+                if ( note_clicked )
+                    this->m.grid->get_note_properties( dx, dy, &drag_note );
+
+                if ( Fl::event_alt() )          // ALT click? - Note velocity/duration change or delete
+                {   // Return if SHIFT or CTRL also pressed or not a note click
+                    if ( Fl::event_shift() || Fl::event_ctrl() || ! note_clicked )
+                        return 1;
+
+                    m.grid->select_none();
+                    m.grid->toggle_select( dx, dy );
+
+                    _event_state = EVENT_STATE_ALT;
+                    hdrag_threshold = false;
+                    vdrag_threshold = false;
+                    drag_velocity = drag_note.velocity;
+                    drag_x = x;
+                    drag_y = y;
+
+                    return 1;
+                }
+
+                if ( Fl::event_ctrl() )         // CTRL click? - rectangular selection
+                {
+                    _event_state = EVENT_STATE_SELECT_RECTANGLE;
+                    set_selection( dx, dx, dy, rtn( ntr( dy ) + 1 ) );
+                    drag_x = x;
+                    drag_y = y;
+
+                    signal_settings_change();
+
+                    return 1;
+                }
+
+                // No note at clicked position?
+                if ( ! note_clicked )
+                {
+                    m.grid->select_none();
+
+                    // Add new note, select it exclusively and enable move mode
+                    this->m.grid->put( dx, dy,
+                                       this->m.grid->default_length(),
+                                       this->m.grid->default_velocity() );
+
+                    m.grid->toggle_select( dx, dy );
+
+                    _event_state = EVENT_STATE_MOVE;
+                    last_move_x = dx;
+                    last_move_y = ntr( dy );
+
+                    return 1;
+                }
+
+                // Note found at clicked position
+
+                if ( ! drag_note.selected )            // Note is not selected?
+                {   // Select the note exclusively
+                    m.grid->select_none();
+                    m.grid->toggle_select( dx, dy );
+                }
+
+                // Activate move mode
+                _event_state = EVENT_STATE_MOVE;
+                last_move_x = dx;
+                last_move_y = ntr( dy );
+                drag_x = x;
+                drag_y = y;
+
+                take_focus();
+
+                return 1;
+            }
+            else if ( Fl::event_button() == 3 )      // Right mouse button press?
+            {
+                int note;
+                if ( ( note = is_row_press() ) >= 0 )   // Click is inside the note row headings?
+                {
+                    if ( IS_PATTERN )
+                    {
+                        Instrument *i = ((pattern *)grid())->mapping.instrument();
+
+                        if ( i )
+                        {
+                            ui->edit_instrument_row( i, note );
+                            changed_mapping();
+                        }
+                    }
+
+                    return 1;
+                }
+            }
+
+            break;
+        }
+
+        case FL_DRAG:           // Mouse drag
+        {
+            if ( Fl::event_is_click() )
+                return 1;
+
+            int dx = x;
+            int dy = y;
+
+            grid_pos( &dx, &dy );
+
+            // Selection mode?
+            if ( _event_state == EVENT_STATE_SELECT_RECTANGLE
+                 || _event_state == EVENT_STATE_SELECT_RANGE )
+            {
+                if ( dx >= _selection.x1 ) dx++;
+
+                if ( _event_state == EVENT_STATE_SELECT_RANGE )
+                {
+                    if ( dx != _selection.x2 )
+                    {
+                        _selection.x2 = dx;
+                        damage(FL_DAMAGE_OVERLAY);
+                    }
+                }
+                else
+                {
+                    if ( dy >= _selection.y1 ) dy = rtn( ntr( dy ) + 1 );
+
+                    if ( dx != _selection.x2 || dy != _selection.y2 )
+                    {
+                        _selection.x2 = dx;
+                        _selection.y2 = dy;
+                        damage(FL_DAMAGE_OVERLAY);
+                    }
+                }
+
+                return 1;
+            }
+
+            // Move mode?
+            if ( _event_state == EVENT_STATE_MOVE )
+            {
+                int odx = drag_x;
+                int ody = drag_y;
+                grid_pos( &odx, &ody );
+
+                if ( last_move_x != dx )
+                {
+                    if ( dx > last_move_x )
+                        move_selected( RIGHT, dx - last_move_x );
+                    else
+                        move_selected( LEFT, last_move_x - dx );
+
+                    last_move_x = dx;
+                }
+
+                if ( dy >= 0 && dy <= 127 )
+                {
+                    dy = ntr( dy );
+
+                    if ( dy > last_move_y  )
+                        move_selected( DOWN, dy - last_move_y );
+                    else if ( dy < last_move_y )
+                        move_selected( UP, last_move_y - dy );
+
+                    last_move_y = dy;
+                }
+
+                return 1;
+            }
+      
+            // Alternate mode? (Change velocity/duration or delete)
+            if ( _event_state == EVENT_STATE_ALT )
+            {
+                int ody = drag_y;
+                int odx = drag_x;
+                    
+                grid_pos( &odx, &ody );
+
+                // Vertical drag threshold already or just now met?
+                if ( vdrag_threshold || abs( drag_y - y ) >= DRAG_THRESHOLD )
+                {
+                    int velocity = drag_velocity + drag_y - y;
+
+                    vdrag_threshold = true;
+
+                    if ( velocity < 1 ) velocity = 1;
+                    else if ( velocity > 127 ) velocity = 127;
+
+                    if ( velocity != drag_note.velocity )
+                    {
+                        drag_note.velocity = velocity;
+                        m.grid->selected_velocity( velocity );  // FIXME - Optimize this (full redraw)
+                    }
+                }
+
+                // Horizontal drag threshold already or just now met?
+                if ( hdrag_threshold || abs( drag_x - x ) >= DRAG_THRESHOLD )
+                {
+                    hdrag_threshold = true;
+
+                    tick_t duration = m.grid->x_to_ts( dx ) - drag_note.start;
+                    tick_t min = m.grid->x_to_ts ( 1 );
+
+                    if ( duration < min )
+                        duration = min;
+
+                    if ( duration != drag_note.duration )
+                    {
+                        drag_note.duration = duration;
+                        m.grid->set_duration ( odx, ody, m.grid->ts_to_x( duration ) ); // FIXME - Need to use selection and optimize this
+                    }
+                }
+
+                return 1;
             }
             break;
         }
-        case FL_RELEASE:
-        {
-            if ( _selection_mode )
-                fix_selection();
 
-            if ( SELECT_RANGE == _selection_mode )
+        case FL_RELEASE:                // Mouse button release
+        {
+            if ( _event_state == EVENT_STATE_SELECT_RECTANGLE
+                 || _event_state == EVENT_STATE_SELECT_RANGE )
+            {
+                fix_selection();        // Normalize the selection
+
+                // Shift adds to selection
+                if ( ! Fl::event_shift() )
+                    grid()->select_none();
+            }
+
+            if ( _event_state == EVENT_STATE_SELECT_RANGE )
             {   // x1 == x2 if range not dragged far enough to count
                 if ( _selection.x1 == _selection.x2 )
                     set_selection ( 0, 0, 0, 0 );
                 else select_range();
 
-                _selection_mode = SELECT_NONE;
+                _event_state = EVENT_STATE_NONE;
                 damage(FL_DAMAGE_OVERLAY);
                 return 1;
             }
-            else if ( SELECT_RECTANGLE == _selection_mode )
+            else if ( _event_state == EVENT_STATE_SELECT_RECTANGLE )
             {   // x1 == x2 if range not dragged far enough to count
                 if ( _selection.x1 == _selection.x2 )
                     set_selection ( 0, 0, 0, 0 );
                 else grid()->select( _selection.x1, _selection.x2, _selection.y1, _selection.y2 );
 
-                _selection_mode = SELECT_NONE;
+                _event_state = EVENT_STATE_NONE;
                 damage(FL_DAMAGE_OVERLAY);
                 signal_settings_change();
                 return 1;
             }
+            else if ( _event_state == EVENT_STATE_ALT )
+            {   // If drag not exceeded, then we have a delete
+                if ( ! ( hdrag_threshold || vdrag_threshold ) )
+                {
+                    int ody = drag_y;
+                    int odx = drag_x;
 
-            if ( ghost_note )
-            {
-                if ( delete_note )
-                {
-                    damage_grid( ghost_note->start, ghost_note->note, ghost_note->duration, 1 );
-                    delete_note = false;
-                }
-                else
-                {
-                    this->m.grid->put( this->m.grid->ts_to_x( ghost_note->start ),
-                                       ghost_note->note,
-                                       ghost_note->duration,
-                                       ghost_note->velocity);
+                    grid_pos( &odx, &ody );
+
+                    m.grid->del( odx, ody );
                 }
 
-                grid()->select_none();
-
-                delete ghost_note;
-                ghost_note = 0;
+                _event_state = EVENT_STATE_NONE;
+                return 1;
             }
-
-            _move_mode = false;
+            else if ( _event_state == EVENT_STATE_MOVE )
+            {
+                _event_state = EVENT_STATE_NONE;
+                return 1;
+            }
 
             break;
         }
-         
-        case FL_DRAG:
 
-            if ( Fl::event_is_click() )
-                return 1;
-
-            {
-                int dx = x;
-                int dy = y;
-
-                grid_pos( &dx, &dy );
-
-                if ( _selection_mode )
-                {
-                    if ( dx >= _selection.x1 ) dx++;
-
-                    if ( _selection_mode == SELECT_RANGE )
-                    {
-                        if ( dx != _selection.x2 )
-                        {
-                            _selection.x2 = dx;
-                            damage(FL_DAMAGE_OVERLAY);
-                        }
-                    }
-                    else
-                    {
-                        if ( dy >= _selection.y1 ) dy = rtn( ntr( dy ) + 1 );
-
-                        if ( dx != _selection.x2 || dy != _selection.y2 )
-                        {
-                            _selection.x2 = dx;
-                            _selection.y2 = dy;
-                            damage(FL_DAMAGE_OVERLAY);
-                        }
-                    }
-                
-                    return 1;
-                }
-
-                if ( _move_mode )
-                { 
-                    int odx = drag_x;
-                    int ody = drag_y;
-                    grid_pos( &odx, &ody );
-
-                    if ( last_move_x != dx )
-                    {
-                        //this->m.grid->move_selected( dx - move_xoffset );
-                        if ( dx > last_move_x )
-                            move_selected( RIGHT, dx - last_move_x );
-                        else
-                            move_selected( LEFT, last_move_x - dx );
-
-                        last_move_x = dx;
-                    }
-
-                    if ( dy >= 0 && dy <= 127 )
-                    {
-                        dy = ntr( dy );
-
-                        if ( dy > last_move_y  )
-                            move_selected( DOWN, dy - last_move_y );
-                        else if ( dy < last_move_y )
-                            move_selected( UP, last_move_y - dy );
-
-                        last_move_y = dy;
-                    }
-
-                    return 1;
-                }
-      
-                if ( ghost_note )
-                {
-                    processed = 0;
-
-                    int ody = drag_y;
-                    int odx = drag_x;
-                    
-                    grid_pos( &odx, &ody );
-                        
-                    /* cursor must leave the row to begin adjusting velocity. */
-                    if ( ody != dy )
-                    {
-                        int velocity;
-
-                        velocity = drag_velocity + drag_y - y;
-
-                        if ( velocity < 1 )
-                            velocity = 1;
-                        else if ( velocity > 127 )
-                            velocity = 127;
-
-                        if ( ghost_note->velocity != velocity )
-                        {
-                            ghost_note->velocity = velocity;
-                            damage_grid( ghost_note->start, ghost_note->note,
-                                         ghost_note->duration, 1 );
-                            processed = 2;
-                        }
-                    }
-
-                    if ( dx != odx )
-                    {
-                        tick_t duration = this->m.grid->x_to_ts( dx ) - ghost_note->start;
-                        tick_t min = this->m.grid->x_to_ts ( 1 );
-
-                        if ( duration < min )
-                            duration = min;
-
-                        if ( ghost_note->duration != duration )
-                        {
-                            damage_grid( ghost_note->start, ghost_note->note,
-                                         max ( duration, ghost_note->duration ), 1 );
-                            ghost_note->duration = duration;
-                            processed = 2;
-                        }
-                    }
-
-                    delete_note = false;
-                }
-            }
-            break;
         default:
-            processed = 0;
+            break;
     }
 
-//    if ( processed )
-//        window()->damage(FL_DAMAGE_OVERLAY);
-
-//    if ( processed == 1 )
-//        damage(FL_DAMAGE_USER1);
-
-    if ( ! processed )
-        return Fl_Group::handle( m );
-    
-    return processed;
+    return Fl_Group::handle( ev );
 }
