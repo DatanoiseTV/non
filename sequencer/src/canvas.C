@@ -1668,6 +1668,8 @@ Canvas::handle ( int ev )
                 {
                     hdrag_threshold = true;
 
+                    if ( dx < 0 ) dx = 0;
+
                     tick_t duration = m.grid->x_to_ts( dx ) - drag_note.start;
                     tick_t min = m.grid->x_to_ts ( 1 );
 
