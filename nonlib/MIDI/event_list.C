@@ -344,11 +344,22 @@ namespace MIDI
             e->select();
     }
 
-    void
+/** deselect all events, returns true if any events were deselected */
+    bool
     event_list::select_none ( void )
     {
+        bool deselected = false;
+
         FOR_ALL( e )
-            e->deselect();
+        {
+            if ( e->selected() )
+            {
+                deselected = true;
+                e->deselect();
+            }
+        }
+
+        return deselected;
     }
 
     void

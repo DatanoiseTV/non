@@ -55,7 +55,7 @@ namespace MIDI {
         void select ( tick_t start, tick_t end, int hi, int lo );
 
         void select_all ( void );
-        void select_none ( void );
+        bool select_none ( void );
         void invert_selection ( void );
         void copy_selected ( event_list *el ) const;
         void paste ( tick_t offset, const event_list *el );
