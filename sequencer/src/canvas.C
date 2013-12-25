@@ -1501,6 +1501,8 @@ Canvas::handle ( int ev )
                 {
                     _event_state = EVENT_STATE_SELECT_RECTANGLE;
                     set_selection( dx, dx, dy, rtn( ntr( dy ) + 1 ) );
+                    hdrag_threshold = false;
+                    vdrag_threshold = false;
                     drag_x = x;
                     drag_y = y;
 
@@ -1583,7 +1585,14 @@ Canvas::handle ( int ev )
             // Selection mode?
             if ( _event_state == EVENT_STATE_SELECT_RECTANGLE
                  || _event_state == EVENT_STATE_SELECT_RANGE )
-            {
+            {   // Has threshold not yet been exceeded?
+                if ( !vdrag_threshold && abs( drag_y - y ) >= DRAG_THRESHOLD )
+                    vdrag_threshold = true;
+                if ( !hdrag_threshold && abs( drag_x - x ) >= DRAG_THRESHOLD )
+                    hdrag_threshold = true;
+                if ( !vdrag_threshold && !hdrag_threshold )
+                    return 1;
+
                 if ( dx >= _selection.x1 ) dx++;
 
                 if ( _event_state == EVENT_STATE_SELECT_RANGE )
@@ -1691,48 +1700,45 @@ Canvas::handle ( int ev )
 
         case FL_RELEASE:                // Mouse button release
         {
-            if ( _event_state == EVENT_STATE_SELECT_RECTANGLE
-                 || _event_state == EVENT_STATE_SELECT_RANGE )
-            {
-                fix_selection();        // Normalize the selection
+            int ody = drag_y;
+            int odx = drag_x;
 
-                // Shift adds to selection
-                if ( ! Fl::event_shift() )
-                    grid()->select_none();
-            }
+            grid_pos( &odx, &ody );
 
-            if ( _event_state == EVENT_STATE_SELECT_RANGE )
-            {   // x1 == x2 if range not dragged far enough to count
-                if ( _selection.x1 == _selection.x2 )
-                    set_selection ( 0, 0, 0, 0 );
-                else select_range();
+            if ( _event_state == EVENT_STATE_SELECT_RANGE
+                 || _event_state == EVENT_STATE_SELECT_RECTANGLE )
+            {   // If threshold not exceeded, toggle note selection
+                if ( !hdrag_threshold && !vdrag_threshold )
+                {
+                    set_selection( 0, 0, 0, 0 );
+                    m.grid->toggle_select( odx, ody );
+                }
+                else
+                {
+                    fix_selection();        // Normalize the selection
+
+                    // Shift adds to selection
+                    if ( ! Fl::event_shift() )
+                        grid()->select_none();
+
+                    // Check for zero sized selection
+                    if ( _selection.x1 != _selection.x2
+                         || ( _event_state == EVENT_STATE_SELECT_RECTANGLE && _selection.y1 != _selection.y2 ) )
+                    {
+                        if ( _event_state == EVENT_STATE_SELECT_RANGE ) select_range();
+                        else grid()->select( _selection.x1, _selection.x2, _selection.y1, _selection.y2 );
+                    }
+                    else set_selection( 0, 0, 0, 0 );
+                }
 
                 _event_state = EVENT_STATE_NONE;
                 damage(FL_DAMAGE_OVERLAY);
-                return 1;
-            }
-            else if ( _event_state == EVENT_STATE_SELECT_RECTANGLE )
-            {   // x1 == x2 if range not dragged far enough to count
-                if ( _selection.x1 == _selection.x2 )
-                    set_selection ( 0, 0, 0, 0 );
-                else grid()->select( _selection.x1, _selection.x2, _selection.y1, _selection.y2 );
-
-                _event_state = EVENT_STATE_NONE;
-                damage(FL_DAMAGE_OVERLAY);
-                signal_settings_change();
                 return 1;
             }
             else if ( _event_state == EVENT_STATE_ALT )
             {   // If drag not exceeded, then we have a delete
                 if ( ! ( hdrag_threshold || vdrag_threshold ) )
-                {
-                    int ody = drag_y;
-                    int odx = drag_x;
-
-                    grid_pos( &odx, &ody );
-
                     m.grid->del( odx, ody );
-                }
 
                 _event_state = EVENT_STATE_NONE;
                 return 1;
