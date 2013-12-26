@@ -198,7 +198,7 @@ public:
     void change_update_all ( void );
     void clear ( void );
     void del ( int x, int y );
-    void adj_velocity ( int x, int y, int n );
+    void set_sel_velocity ( int velocity );
     void adj_duration ( int x, int y, int l );
     void set_sel_duration ( int xduration );
     void set_end ( int x, int y, int l );

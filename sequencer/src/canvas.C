@@ -1697,7 +1697,7 @@ Canvas::handle ( int ev )
                     {
                         drag_note.velocity = velocity;
                         m.grid->set_undo_group ("velocity");
-                        m.grid->selected_velocity( velocity );  // FIXME - Optimize this (full redraw)
+                        m.grid->set_sel_velocity( velocity );
                     }
                 }
 

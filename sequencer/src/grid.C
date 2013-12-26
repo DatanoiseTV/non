@@ -546,33 +546,18 @@ Grid::move ( int x, int y, int nx, int ny )
     unlock();
 }
 
-
+/** Set velocity of the first selected note */
 void
-Grid::adj_velocity ( int x, int y, int n )
+Grid::set_sel_velocity ( int velocity )
 {
     lock();
 
-    event *e = _event( x, y, true );
+    event *e = _event_sel( true );
 
-    if ( e )
+    if ( e && velocity != e->note_velocity() )
     {
-        DMESSAGE( "adjusting velocity" );
-
-        {
-            int v = e->note_velocity();
-            int new_v = v + n;
-
-            if ( new_v > 127 )
-                new_v = 127;
-            else if ( new_v <= 0 )
-                new_v = 1;
-
-            if ( new_v != v )
-            {
-                e->note_velocity( new_v );
-                change_update ( e );
-            }
-        }
+        e->note_velocity( velocity );
+        change_update ( e );
     }
 
     unlock();
