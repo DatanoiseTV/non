@@ -279,6 +279,28 @@ Function {update_transport( void * )} {open return_type void
 } {
   code {// transport_poll();
 
+ static double beats_per_minute = 0.0;
+ static unsigned beats_per_bar = 0;
+ static unsigned beat_type = 0;
+
+ if ( transport.beats_per_minute != beats_per_minute )
+ {
+     beats_per_minute = transport.beats_per_minute;
+     ui->bpm_input->value( beats_per_minute );
+ }
+
+ if ( transport.beats_per_bar != beats_per_bar )
+ {
+     beats_per_bar = transport.beats_per_bar;
+     ui->beats_per_bar_input->value( beats_per_bar );
+ }
+
+ if ( transport.beat_type != beat_type )
+ {
+     beat_type = transport.beat_type;
+     ui->beat_type_input->value( beat_type );
+ }
+
 handle_midi_input();
 
  ui->progress_group->do_callback();
@@ -439,32 +461,29 @@ if ( maybe_save_song() )
           xywh {552 26 312 69}
           code0 {o->resizable(0);}
         } {
-          Fl_Value_Input {} {
+          Fl_Value_Input bpm_input {
             label BPM
             callback {transport.set_beats_per_minute( o->value() );}
             xywh {825 39 35 19} labelsize 9 align 1 when 8 textsize 10
-            code1 {transport.signal_tempo_change.connect( sigc::mem_fun( o, static_cast<int (Fl_Valuator::*)(double)>(&Fl_Valuator::value) ) );}
-            code2 {o->value( transport.beats_per_minute );}
+            code0 {o->value( transport.beats_per_minute );}
           }
           Fl_Group {} {
             label {Time Sig.} open
             xywh {756 38 64 21} labelsize 9
           } {
-            Fl_Value_Input {} {
+            Fl_Value_Input beats_per_bar_input {
               callback {transport.set_beats_per_bar( o->value() );}
               xywh {756 39 24 19} textsize 10
-              code0 {transport.signal_bpb_change.connect( sigc::mem_fun( o, static_cast<int (Fl_Valuator::*)(double)>(&Fl_Valuator::value) ) );}
-              code1 {o->value( transport.beats_per_bar );}
+              code0 {o->value( transport.beats_per_bar );}
             }
             Fl_Box {} {
               label {/}
               xywh {780 38 14 21}
             }
-            Fl_Value_Input {} {
+            Fl_Value_Input beat_type_input {
               callback {transport.set_beat_type( o->value() );}
               xywh {795 39 24 19} textsize 10
-              code0 {transport.signal_beat_change.connect( sigc::mem_fun( o, static_cast<int (Fl_Valuator::*)(double)>(&Fl_Valuator::value) ) );}
-              code1 {o->value( transport.beat_type );}
+              code0 {o->value( transport.beat_type );}
             }
           }
           Fl_Choice record_mode_menu {

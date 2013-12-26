@@ -99,6 +99,7 @@ Transport::Transport ( void )
     _done                    = false;
 }
 
+/* This is called from the RT thread */
 void
 Transport::poll ( void )
 {
@@ -111,6 +112,7 @@ Transport::poll ( void )
 
     valid = pos.valid & JackPositionBBT;
 
+    /* FIXME - Should ensure atomic assignment */
     bar = pos.bar;
     beat = pos.beat;
     tick = pos.tick;
@@ -118,17 +120,6 @@ Transport::poll ( void )
     /* bars and beats start at 1.. */
     pos.bar--;
     pos.beat--;
-
-    /* FIXME: these probably shouldn't be called from the RT
-       thread... Anyway, it happens infrequently. */
-    if ( pos.beats_per_minute != beats_per_minute )
-        signal_tempo_change( pos.beats_per_minute );
-
-    if ( pos.beats_per_bar != beats_per_bar )
-        signal_bpb_change( pos.beats_per_bar );
-
-    if ( pos.beat_type != beat_type )
-        signal_beat_change( pos.beat_type );
 
     ticks_per_beat = pos.ticks_per_beat;
     beats_per_bar = pos.beats_per_bar;
