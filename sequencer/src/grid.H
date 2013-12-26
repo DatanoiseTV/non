@@ -200,7 +200,7 @@ public:
     void del ( int x, int y );
     void adj_velocity ( int x, int y, int n );
     void adj_duration ( int x, int y, int l );
-    void set_duration ( int x, int y, int l );
+    void set_sel_duration ( int xduration );
     void set_end ( int x, int y, int l );
     int get_start ( int *x, int *y ) const;
     void move ( int x, int y, int nx, int ny );

@@ -607,22 +607,23 @@ Grid::adj_duration ( int x, int y, int l )
     unlock();
 }
 
+/** Set the duration of the first selected note */
 void
-Grid::set_duration ( int x, int y, int ex )
+Grid::set_sel_duration ( int xduration )
 {
-    if ( ex < 1 )
+    if ( xduration < 1 )
         return;
 
     lock();
 
-    event *e = _event( x, y, true );
+    event *e = _event_sel( true );
 
     if ( e )
     {
         DMESSAGE( "adjusting duration" );
 
         tick_t len = e->note_duration();
-        tick_t new_len = x_to_ts( ex );
+        tick_t new_len = x_to_ts( xduration );
 
         if ( new_len != len )
         {

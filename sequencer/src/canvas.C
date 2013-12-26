@@ -1670,17 +1670,16 @@ Canvas::handle ( int ev )
 
                     if ( dx < 0 ) dx = 0;
 
-                    tick_t duration = m.grid->x_to_ts( dx ) - drag_note.start;
-                    tick_t min = m.grid->x_to_ts ( 1 );
+                    int duration = dx - m.grid->ts_to_x( drag_note.start );
 
-                    if ( duration < min )
-                        duration = min;
+                    if ( duration < 1 )
+                        duration = 1;
 
                     if ( duration != drag_note.duration )
                     {
-                        drag_note.duration = duration;
+                        drag_note.duration = duration;          // We store duration in grid units (not ticks)
                         m.grid->set_undo_group ("duration");
-                        m.grid->set_duration ( odx, ody, m.grid->ts_to_x( duration ) ); // FIXME - Need to use selection and optimize this
+                        m.grid->set_sel_duration ( duration );
                     }
                 }
 
