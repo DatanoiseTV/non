@@ -1403,12 +1403,6 @@ Canvas::handle ( int ev )
                         case 'f':
                             pan( TO_PLAYHEAD, 0 );
                             break;
-                        case 'r':
-                            select_range();
-                            break;
-                        case 'q':
-                            grid()->select_none();
-                            break;
                         case 'i':
                             invert_selection();
                             break;
