@@ -33,7 +33,8 @@ extern jack_client_t *client;
 
 Transport transport;
 
-static volatile bool _done;
+std::atomic_bool _changed;      // Set to TRUE if any master timebase parameters have changed
+
 
 /** callback for when we're Timebase Master, mostly taken from
  * transport.c in Jack's example clients. */
@@ -44,18 +45,21 @@ static volatile bool _done;
  * error, and all timebase master routines I've examined appear to
  * suffer from this same tempo distortion (and all use the magic
  * number of 1920 ticks_per_beat in an attempt to reduce the magnitude
- * of the error. Currently, we keep this behaviour. */
+ * of the error. Currently, we keep this behaviour.
+ *
+ * This is called from the RT thread.
+ */
 void
 Transport::timebase ( jack_transport_state_t, jack_nframes_t nframes, jack_position_t *pos, int new_pos, void * )
 {
 
-    if ( new_pos || ! _done )
+    if ( new_pos || _changed.load() )
     {
         pos->valid = JackPositionBBT;
-        pos->beats_per_bar = transport._master_beats_per_bar;
+        pos->beats_per_bar = transport._master_beats_per_bar.load();
         pos->ticks_per_beat = 1920.0;                           /* magic number means what? */
-        pos->beat_type = transport._master_beat_type;
-        pos->beats_per_minute = transport._master_beats_per_minute;
+        pos->beat_type = transport._master_beat_type.load();
+        pos->beats_per_minute = (double)(transport._master_beats_per_minute.load()) / 10.0;
 
         double wallclock = (double)pos->frame / (pos->frame_rate * 60);
 
@@ -68,7 +72,7 @@ Transport::timebase ( jack_transport_state_t, jack_nframes_t nframes, jack_posit
         pos->bar_start_tick = pos->bar * pos->beats_per_bar * pos->ticks_per_beat;
         pos->bar++;
 
-        _done = true;
+        _changed.store( false );
     }
     else
     {
@@ -93,61 +97,67 @@ Transport::timebase ( jack_transport_state_t, jack_nframes_t nframes, jack_posit
 
 Transport::Transport ( void )
 {
-    _master_beats_per_bar    = 4;
-    _master_beat_type        = 4;
-    _master_beats_per_minute = 120;
-    _done                    = false;
+    _master_beats_per_bar.store( 4 );
+    _master_beat_type.store( 4 );
+    _master_beats_per_minute.store( 1200 );             // In 10ths of BPM
+    _changed.store( true );
+
+    rt = { 0 };
+    ui = { 0 };
+    rt.ticks_per_beat = PPQN;
+    ui.ticks_per_beat = PPQN;
 }
 
 /* This is called from the RT thread */
 void
-Transport::poll ( void )
+poll_timebase ( Timebase *tb )
 {
     jack_transport_state_t ts;
     jack_position_t pos;
 
     ts = jack_transport_query( client, &pos );
 
-    rolling = ts == JackTransportRolling;
+    tb->rolling = ts == JackTransportRolling;
+    tb->valid = pos.valid & JackPositionBBT;
 
-    valid = pos.valid & JackPositionBBT;
-
-    /* FIXME - Should ensure atomic assignment */
-    bar = pos.bar;
-    beat = pos.beat;
-    tick = pos.tick;
+    tb->bar = pos.bar;
+    tb->beat = pos.beat;
 
     /* bars and beats start at 1.. */
     pos.bar--;
     pos.beat--;
 
-    ticks_per_beat = pos.ticks_per_beat;
-    beats_per_bar = pos.beats_per_bar;
-    beat_type = pos.beat_type;
-    beats_per_minute = pos.beats_per_minute;
+    tb->beats_per_bar = pos.beats_per_bar;
+    tb->beat_type = pos.beat_type;
+    tb->beats_per_minute = pos.beats_per_minute;
 
-    frame = pos.frame;
-    frame_rate = pos.frame_rate;
-
-    /* FIXME: this only needs to be calculated if bpm or framerate changes  */
-    {
-        const double frames_per_beat = frame_rate * 60 / beats_per_minute;
-
-        frames_per_tick = frames_per_beat / (double)PPQN;
-        ticks_per_period = nframes / frames_per_tick;
-    }
+    tb->frame = pos.frame;
+    tb->frame_rate = pos.frame_rate;
 
     tick_t abs_tick = (pos.bar * pos.beats_per_bar + pos.beat) * pos.ticks_per_beat + pos.tick;
-//    tick_t abs_tick = pos.bar_start_tick + (pos.beat * pos.ticks_per_beat) + pos.tick;
 
     /* scale Jack's ticks to our ticks */
-
     const double pulses_per_tick = PPQN / pos.ticks_per_beat;
 
-    ticks = abs_tick * pulses_per_tick;
-    tick = tick * pulses_per_tick;
+    tb->ticks = abs_tick * pulses_per_tick;
+    tb->tick = pos.tick * pulses_per_tick;
 
-    ticks_per_beat = PPQN;
+    // The following are calculated based on other parameters, but probably not worth checking for changes as far as optimization
+    tb->frames_per_tick = (pos.frame_rate * 60.0 / pos.beats_per_minute) / (double)PPQN;        // frames_per_beat / PPQN
+}
+
+/** RT thread timebase variables poll function */
+void
+Transport::poll_rt ( void )
+{
+    poll_timebase( &rt );
+}
+
+/** UI thread timebase variables poll function */
+void
+Transport::poll_ui ( void )
+{
+    poll_timebase( &ui );
 }
 
 void
@@ -167,7 +177,7 @@ Transport::stop ( void )
 void
 Transport::toggle ( void )
 {
-    if ( rolling )
+    if ( ui.rolling )
         stop();
     else
         start();
@@ -176,7 +186,7 @@ Transport::toggle ( void )
 void
 Transport::locate ( tick_t ticks )
 {
-    jack_nframes_t frame = trunc( ticks * transport.frames_per_tick );
+    jack_nframes_t frame = trunc( ticks * transport.ui.frames_per_tick );
 
     MESSAGE( "Relocating transport to %f, %lu", ticks, frame );
 
@@ -186,8 +196,8 @@ Transport::locate ( tick_t ticks )
 void
 Transport::set_beats_per_minute ( double n )
 {
-    _master_beats_per_minute = n;
-    _done = false;
+    _master_beats_per_minute = n * 10.0 + 0.5;          // In 10ths of BPM
+    _changed.store( true );
 }
 
 void
@@ -197,7 +207,7 @@ Transport::set_beats_per_bar ( int n )
         return;
 
     _master_beats_per_bar = n;
-    _done = false;
+    _changed.store( true );
 }
 
 void
@@ -207,5 +217,5 @@ Transport::set_beat_type ( int n )
         return;
 
     _master_beat_type = n;
-    _done = false;
+    _changed.store( true );
 }

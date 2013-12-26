@@ -234,11 +234,11 @@ _tick = tick;} {}
   }
   Function {update( void )} {open return_type void
   } {
-    code {if ( transport.beats_per_bar ) {
-bpb( transport.beats_per_bar );
-tpb( transport.ticks_per_beat );
-beat( transport.beat - 1 );
-tick( transport.tick - 1 );}} {}
+    code {if ( transport.ui.beats_per_bar ) {
+bpb( transport.ui.beats_per_bar );
+tpb( transport.ui.ticks_per_beat );
+beat( transport.ui.beat - 1 );
+tick( transport.ui.tick - 1 );}} {}
   }
   code {_bpb = 0;
 _tpb = 0;
@@ -277,27 +277,27 @@ _draw_overlay_userdata = v;} {}
 
 Function {update_transport( void * )} {open return_type void
 } {
-  code {// transport_poll();
+  code {transport.poll_ui();
 
  static double beats_per_minute = 0.0;
  static unsigned beats_per_bar = 0;
  static unsigned beat_type = 0;
 
- if ( transport.beats_per_minute != beats_per_minute )
+ if ( transport.ui.beats_per_minute != beats_per_minute )
  {
-     beats_per_minute = transport.beats_per_minute;
+     beats_per_minute = transport.ui.beats_per_minute;
      ui->bpm_input->value( beats_per_minute );
  }
 
- if ( transport.beats_per_bar != beats_per_bar )
+ if ( transport.ui.beats_per_bar != beats_per_bar )
  {
-     beats_per_bar = transport.beats_per_bar;
+     beats_per_bar = transport.ui.beats_per_bar;
      ui->beats_per_bar_input->value( beats_per_bar );
  }
 
- if ( transport.beat_type != beat_type )
+ if ( transport.ui.beat_type != beat_type )
  {
-     beat_type = transport.beat_type;
+     beat_type = transport.ui.beat_type;
      ui->beat_type_input->value( beat_type );
  }
 
@@ -313,13 +313,13 @@ Fl::repeat_timeout( TRANSPORT_POLL_INTERVAL, update_transport );
 
 static int oldstate = -1;
 
-if ( transport.rolling != oldstate )
+if ( transport.ui.rolling != oldstate )
 {
 
-	ui->play_button->label( transport.rolling ? "@square" : "@>" );
-	oldstate = transport.rolling;
+	ui->play_button->label( transport.ui.rolling ? "@square" : "@>" );
+	oldstate = transport.ui.rolling;
 	
-	if ( transport.rolling )
+	if ( transport.ui.rolling )
 	{
 		ui->menu_new->deactivate();
 		ui->menu_open->deactivate();
@@ -343,7 +343,7 @@ if ( nsm && nsm->is_active() )
 }
 
 // JUST A TEST
-if ( transport.rolling )
+if ( transport.ui.rolling )
 {
 	if ( ui->tabs->value() == ui->pattern_tab )
 		ui->pattern_canvas_widget->redraw_playhead();
@@ -465,7 +465,7 @@ if ( maybe_save_song() )
             label BPM
             callback {transport.set_beats_per_minute( o->value() );}
             xywh {825 39 35 19} labelsize 9 align 1 when 8 textsize 10
-            code0 {o->value( transport.beats_per_minute );}
+            code0 {o->value( transport.ui.beats_per_minute );}
           }
           Fl_Group {} {
             label {Time Sig.} open
@@ -474,7 +474,7 @@ if ( maybe_save_song() )
             Fl_Value_Input beats_per_bar_input {
               callback {transport.set_beats_per_bar( o->value() );}
               xywh {756 39 24 19} textsize 10
-              code0 {o->value( transport.beats_per_bar );}
+              code0 {o->value( transport.ui.beats_per_bar );}
             }
             Fl_Box {} {
               label {/}
@@ -483,7 +483,7 @@ if ( maybe_save_song() )
             Fl_Value_Input beat_type_input {
               callback {transport.set_beat_type( o->value() );}
               xywh {795 39 24 19} textsize 10
-              code0 {o->value( transport.beat_type );}
+              code0 {o->value( transport.ui.beat_type );}
             }
           }
           Fl_Choice record_mode_menu {
@@ -1152,7 +1152,7 @@ pattern_canvas_widget->changed_mapping();} open
 
 if ( transport.master )
 	s = "Master";
-else if ( transport.valid )
+else if ( transport.ui.valid )
 	s = "Slave";
 
 if ( s != o->label() )

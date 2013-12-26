@@ -61,7 +61,7 @@ NSM_Client::command_save ( char **out_msg )
 int 
 NSM_Client::command_open ( const char *name, const char *display_name, const char *client_id, char **out_msg )
 {
-    if ( transport.rolling )
+    if ( transport.ui.rolling )
     {
         *out_msg = strdup( "Cannot open while transport is running." );
         

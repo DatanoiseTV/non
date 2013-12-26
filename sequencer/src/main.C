@@ -172,7 +172,7 @@ setup_jack ( )
     if ( ! jack_name )
         ASSERTION( "Could not initialize MIDI system! (is Jack running and with MIDI ports enabled?)" );
 
-    if ( ! transport.valid )
+    if ( ! transport.ui.valid )
     {
         if ( transport.master )
             ASSERTION( "The version of JACK you are using does not appear to be capable of passing BBT positional information." );

@@ -89,8 +89,6 @@ typedef struct {
 static port_t output[MAX_PORT];
 static port_t input[2];                                                /* control, performance */
 
-jack_nframes_t nframes;                                         /* for compatibility with older jack */
-
 bool
 midi_is_active ( void )
 {
@@ -189,14 +187,14 @@ midi_output_event ( int port, const midievent *e, tick_t duration )
     }
 }
 
-void
-midi_write_event ( int port, const midievent *e )
+static inline void
+midi_write_event ( int port, const midievent *e, jack_nframes_t nframes )
 {
     byte_t *buffer;
 
     // what I want here is to translate a PPQN tick into the
     // current period.
-    jack_nframes_t frame = transport.frames_per_tick * e->timestamp();
+    jack_nframes_t frame = transport.rt.frames_per_tick * e->timestamp();
 
     int l = e->size();
 
@@ -305,27 +303,25 @@ process ( jack_nframes_t nframes, void *arg )
 
     static int not_dropped = 0;
 
-    ::nframes = nframes;
-
-    transport.nframes = nframes;
-    transport.poll();
+    transport.poll_rt();
 
     /* ph-nph is exclusive. It is important that in normal continuous playback each tick is covered exactly once! */
-    const tick_t ph = transport.ticks;
-    const tick_t nph = transport.ticks + transport.ticks_per_period;
+    const tick_t ph = transport.rt.ticks;
+    const double ticks_per_period = nframes / transport.rt.frames_per_tick;
+    const tick_t nph = transport.rt.ticks + ticks_per_period;
 
-    if ( ! transport.valid )
+    if ( ! transport.rt.valid )
         goto schedule;
 
-    if ( ( ! transport.rolling ) || ph == oph )
+    if ( ( ! transport.rt.rolling ) || ph == oph )
         goto schedule;
 
     /* if ( ph != onph ) */
     /* { */
     /*     if ( onph > ph ) */
-    /*         DWARNING( "duplicated %lu ticks (out of %d)", onph - ph, (int)(not_dropped * transport.ticks_per_period) ); */
+    /*         DWARNING( "duplicated %lu ticks (out of %d)", onph - ph, (int)(not_dropped * ticks_per_period) ); */
     /*     else */
-    /*         DWARNING( "dropped %lu ticks (out of %d), ticks per period = %f", ph - onph, (int)(not_dropped * transport.ticks_per_period) ); */
+    /*         DWARNING( "dropped %lu ticks (out of %d), ticks per period = %f", ph - onph, (int)(not_dropped * ticks_per_period) ); */
 
     /*     not_dropped = 0; */
     /* } */
@@ -348,7 +344,7 @@ process ( jack_nframes_t nframes, void *arg )
         old_play_mode = song.play_mode;
     }
 
-//  DMESSAGE( "tpp %f %lu-%lu", transport.ticks_per_period, ph, nph );
+//  DMESSAGE( "tpp %f %lu-%lu", ticks_per_period, ph, nph );
 
     /* now handle control input */
     {
@@ -369,7 +365,7 @@ process ( jack_nframes_t nframes, void *arg )
             jack_midi_event_get( &ev, input[j].buf, i );
 
             /* time is frame within cycle, convert to absolute tick */
-            e.timestamp( ph + (ev.time / transport.frames_per_tick) );
+            e.timestamp( ph + (ev.time / transport.rt.frames_per_tick) );
             e.status( ev.buffer[0] );
             e.lsb( ev.buffer[1] );
             if ( ev.size == 3 )
@@ -475,7 +471,7 @@ process ( jack_nframes_t nframes, void *arg )
             jack_midi_event_get( &ev, input[j].buf, i );
 
             /* time is frame within cycle, convert to absolute tick */
-            e.timestamp( ph + (ev.time / transport.frames_per_tick) );
+            e.timestamp( ph + (ev.time / transport.rt.frames_per_tick) );
             e.status( ev.buffer[0] );
             e.lsb( ev.buffer[1] );
             if ( ev.size == 3 )
@@ -489,7 +485,7 @@ process ( jack_nframes_t nframes, void *arg )
 
 schedule:
 
-    const int subticks_per_period = transport.ticks_per_period * subticks_per_tick;
+    const int subticks_per_period = ticks_per_period * subticks_per_tick;
 
     for ( uint i = MAX_PORT; i-- ; )
     {
@@ -542,7 +538,7 @@ schedule:
         {
             n = e->next();
 
-            midi_write_event( i, e );
+            midi_write_event( i, e, nframes );
 
             output[ i ].events.unlink( e );
 
@@ -623,6 +619,9 @@ midi_init ( const char *name )
      * valid transport info. */
     MESSAGE( "Waiting for JACK..." );
     usleep( 500000 );
+
+    // Initial poll of UI variables
+    transport.poll_ui();
 
     return (const char *) jack_get_client_name(client);
 }

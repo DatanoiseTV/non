@@ -301,7 +301,7 @@ pattern::put ( int x, int y, tick_t l )
 
     Grid::put( x, y, l );
 
-    if ( ! transport.rolling )
+    if ( ! transport.ui.rolling )
     {
         /* echo note */
         midievent e;
@@ -342,7 +342,7 @@ pattern::trigger ( tick_t start, tick_t end )
 void
 pattern::trigger ( void )
 {
-    trigger( transport.frame / transport.frames_per_tick, INFINITY );
+    trigger( transport.ui.frame / transport.ui.frames_per_tick, INFINITY );
 }
 
 void

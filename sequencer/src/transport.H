@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <sigc++/sigc++.h>
 
 using namespace sigc;
@@ -29,18 +30,11 @@ using namespace sigc;
 
 typedef double playhead_t;
 
-class Transport : public trackable {
-
-    double _master_beats_per_minute;
-    unsigned _master_beats_per_bar;
-    unsigned _master_beat_type;
-
-public:
-
-    bool master;                                                /* are we driving the transport? */
+/* Timebase variables from jack_transport_query and calculated derivatives */
+typedef struct
+{
     bool rolling;
     bool valid;
-    volatile bool recording;
 
     unsigned long bar;
     unsigned beat;
@@ -53,17 +47,30 @@ public:
     double ticks_per_beat;
     double beats_per_minute;
 
-    double ticks_per_period;
-    double frames_per_tick;
-
     double frame_rate;
-
     double frame;
-    double nframes;
+
+    double frames_per_tick;
+} Timebase;
+
+class Transport : public trackable {
+    /* Accessed by UI and RT threads */
+    std::atomic_uint _master_beats_per_minute;                  /* In 10ths of BPM so we can use atomic int */
+    std::atomic_uint _master_beats_per_bar;
+    std::atomic_uint _master_beat_type;
+
+public:
+
+    Timebase rt;                                                /* RT thread timebase variables */
+    Timebase ui;                                                /* UI thread timebase variables */
+
+    std::atomic_bool master;                                    /* are we driving the transport?  Accessed by UI and RT threads */
+    std::atomic_bool recording;                                 /* Are we recording?  Accessed by UI and RT threads */
 
     Transport ( void );
 
-    void poll ( void );
+    void poll_rt ( void );
+    void poll_ui ( void );
     void start ( void );
     void stop ( void );
     void toggle ( void );
@@ -74,7 +81,6 @@ public:
     void set_beat_type ( int n );
 
     static void timebase ( jack_transport_state_t state, jack_nframes_t nframes, jack_position_t *pos, int new_pos, void *arg );
-
 };
 
 extern Transport transport;
