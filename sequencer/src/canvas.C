@@ -1347,6 +1347,28 @@ Canvas::handle ( int ev )
                     case FL_Insert:
                         insert_time();
                         break;
+                    case FL_Left:
+                        move_selected( LEFT, 1 );
+                        break;
+                    case FL_Right:
+                        move_selected( RIGHT, 1 );
+                        break;
+                    case FL_Up:
+                        move_selected( UP, 1 );
+                        break;
+                    case FL_Down:
+                        move_selected( DOWN, 1 );
+                        break;
+                    default:
+                        return Fl_Group::handle( ev );
+                }
+
+                return 1;
+            }
+            else if ( Fl::event_state() & FL_ALT )
+            {
+                switch ( Fl::event_key() )
+                {
                     case FL_Right:
                         pan( TO_NEXT_NOTE, 0 );
                         break;
@@ -1356,9 +1378,9 @@ Canvas::handle ( int ev )
                     default:
                         return Fl_Group::handle( ev );
                 }
+
+                return 1;
             }
-            else if ( Fl::event_state() & FL_ALT )
-                break;
 
             switch ( Fl::event_key() )
             {
@@ -1390,46 +1412,14 @@ Canvas::handle ( int ev )
                         case 'i':
                             invert_selection();
                             break;
-                            /* case '1': */
-                            /*     h_zoom( 2.0f ); */
-                            /*     break; */
-                            /* case '2': */
-                            /*     h_zoom( 0.5f ); */
-                            /*     break; */
-                            /* case '3': */
-                            /*     v_zoom( 2.0f ); */
-                            /*     break; */
-                            /* case '4': */
-                            /*     v_zoom( 0.5f ); */
-                            /*     break; */
-                            /* case ' ': */
-                            /*     transport.toggle(); */
-                            /*     break; */
-                        case '<':
-                            move_selected( LEFT, 1 );
-                            break;
-                        case '>':
-                            move_selected( RIGHT, 1 );
-                            break;
-                        case ',':
-                            move_selected( UP, 1 );
-                            break;
-                        case '.':
-                            move_selected( DOWN, 1 );
-                            break;
                         case 'C':
                             crop();
                             break;
                         case 'd':
                         {
-                            MESSAGE( "duplicating thing" );
                             grid( grid()->clone() );
-
-                            // number of phrases may have changed.
-                            ui->update_sequence_widgets();
-
+                            ui->update_sequence_widgets();              // number of phrases may have changed.
                             break;
-
                         }
                         case 'D':
                             duplicate_range();
@@ -1440,9 +1430,9 @@ Canvas::handle ( int ev )
                         default:
                             return Fl_Group::handle( ev );
                     }
-
-                    return 1;
             }
+
+            return 1;
         }
 
         case FL_PUSH:           // Mouse button press
