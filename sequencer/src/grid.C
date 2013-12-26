@@ -82,6 +82,9 @@ Grid::Grid ( const Grid &rhs ) : sigc::trackable()
 {
     _ro_data = new data( *rhs._ro_data );
     _rw_data = NULL;
+    _in_rt_thread = false;
+    _undo_group = NULL;
+    _last_undo_group = NULL;
 
     _name = rhs._name ? strdup( rhs._name ) : NULL;
     _notes = rhs._notes ? strdup( rhs._notes ) : NULL;
