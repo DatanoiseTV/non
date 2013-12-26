@@ -306,6 +306,27 @@ Grid::_event ( int x, int y, bool write ) const
     return NULL;
 }
 
+/** Get first selected event (used for single selected note operations) */
+event *
+Grid::_event_sel ( bool write ) const
+{
+    const event_list *r;
+
+    if ( write ) r = &_rw_data->events;
+    else r = &const_cast< data * >(_ro_data.load())->events;
+
+    if ( r->empty() )
+        return NULL;
+
+    for ( event *e = r->first(); e; e = e->next() )
+    {
+        if ( e->is_note_on() && e->selected() )
+            return const_cast<event *>(e);
+    }
+
+    return NULL;
+}
+
 void
 Grid::clear ( void )
 {

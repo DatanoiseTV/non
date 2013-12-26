@@ -143,6 +143,7 @@ protected:
     void _unlock ( bool no_undo );
     void _remove_marked ( void );
     MIDI::event * _event ( int x, int y, bool write ) const;
+    MIDI::event * _event_sel ( bool write ) const;
     void _link ( void );
     void _relink ( void );
     void _fix_length ( void );
