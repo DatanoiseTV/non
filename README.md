@@ -28,25 +28,31 @@ Key Bindings
 ===
 * Ctrl-Delete: Delete time
 * Ctrl-Insert: Insert time
-* Ctrl-Right: Pan to next note
-* Ctrl-Left: Pan to previous note
-* Left: Pan left
+* Alt-Left: Pan to previous note
+* Alt-Right: Pan to next note
+* Left: Pan lefts
 * Right: Pan right
 * Up: Pan up
 * Down: Pan down
 * f: Pan to playhead
-* r: Select range
-* q/CTRL-SHIFT-A: Select none
-* CTRL-A: Select all
-* i: Invert selection
-* <: Move selected left
-* >: Move selected right
-* ,: Move selected up
-* .: Move selected down
-* C: Crop
-* d: Duplicate Pattern/Sequence
-* D: Duplicate range
+* Ctrl-A: Select all
+* Ctrl-Shift-A: Select none
+* Shift-Ctrl-I: Invert selection
+* Ctrl-C: Copy (copy selected notes to clipboard)
+* Ctrl-V: Paste (paste clipboard to beginning of current selected range or region)
+* Ctrl-X: Cut (copy selected notes to clipboard and delete them)
+* Delete: Delete selected Items
+* Shift-Delete: Delete all Items in Pattern/Phrase
+* Ctrl-Left: Move selected left
+* Ctrl-Right: Move selected right
+* Ctrl-Up: Move selected up
+* Ctrl-Down: Move selected down
+* Ctrl-Z: Undo
+* Ctrl-Shift-Z: Redo
+* C: Crop (delete everything but what is in the selected region/range)
+* a: Add new empty Pattern/Phrase
+* d: Duplicate current Pattern/Phrase
+* D: Duplicate range (creates a new Pattern with the selected notes)
 * t: Trim to last note
-* CTRL-C: Copy
-* CTRL-V: Paste
-* CTRL-X: Cut
+* [: Previous Pattern/Phrase
+* ]: Next Pattern/Phrase
