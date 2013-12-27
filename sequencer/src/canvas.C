@@ -1486,7 +1486,6 @@ Canvas::handle ( int ev )
                 if ( Fl::event_ctrl() )         // CTRL click? - rectangular selection
                 {
                     _event_state = EVENT_STATE_SELECT_RECTANGLE;
-                    set_selection( dx, dx, dy, rtn( ntr( dy ) + 1 ) );
                     hdrag_threshold = false;
                     vdrag_threshold = false;
                     drag_x = x;
@@ -1573,13 +1572,27 @@ Canvas::handle ( int ev )
             // Selection mode?
             if ( _event_state == EVENT_STATE_SELECT_RECTANGLE
                  || _event_state == EVENT_STATE_SELECT_RANGE )
-            {   // Has threshold not yet been exceeded?
+            {
+                bool init_selection = !vdrag_threshold && !hdrag_threshold
+                    && _event_state == EVENT_STATE_SELECT_RECTANGLE;
+
+                // Has threshold not yet been exceeded?
                 if ( !vdrag_threshold && abs( drag_y - y ) >= DRAG_THRESHOLD )
                     vdrag_threshold = true;
                 if ( !hdrag_threshold && abs( drag_x - x ) >= DRAG_THRESHOLD )
                     hdrag_threshold = true;
                 if ( !vdrag_threshold && !hdrag_threshold )
                     return 1;
+
+                if ( init_selection )   // Only overwrite the selection if drag threshold met
+                {
+                    int odx = drag_x;
+                    int ody = drag_y;
+
+                    grid_pos( &odx, &ody );
+
+                    set_selection( odx, odx, ody, rtn( ntr( ody ) + 1 ) );
+                }
 
                 if ( dx >= _selection.x1 ) dx++;
 
@@ -1698,13 +1711,8 @@ Canvas::handle ( int ev )
 
             if ( _event_state == EVENT_STATE_SELECT_RANGE
                  || _event_state == EVENT_STATE_SELECT_RECTANGLE )
-            {   // If threshold not exceeded, toggle note selection
-                if ( !hdrag_threshold && !vdrag_threshold )
-                {
-                    set_selection( 0, 0, 0, 0 );
-                    m.grid->toggle_select( odx, ody );
-                }
-                else
+            {   // Drag threshold exceeded?
+                if ( hdrag_threshold || vdrag_threshold )
                 {
                     fix_selection();        // Normalize the selection
 
@@ -1720,6 +1728,12 @@ Canvas::handle ( int ev )
                         else grid()->select( _selection.x1, _selection.x2, _selection.y1, _selection.y2 );
                     }
                     else set_selection( 0, 0, 0, 0 );
+                }
+                else
+                {   // Drag threshold not reached, toggle note selection if range select or clear selection
+                    if ( _event_state == EVENT_STATE_SELECT_RANGE
+                         || ! m.grid->toggle_select( odx, ody ) )
+                        set_selection( 0, 0, 0, 0 );                        // Clear selection if click not on note
                 }
 
                 _event_state = EVENT_STATE_NONE;
