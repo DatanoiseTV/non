@@ -37,7 +37,7 @@ Key Bindings
 * f: Pan to playhead
 * Ctrl-A: Select all
 * Ctrl-Shift-A: Select none
-* Shift-Ctrl-I: Invert selection
+* Ctrl-I: Invert selection
 * Ctrl-C: Copy (copy selected notes to clipboard)
 * Ctrl-V: Paste (paste clipboard to beginning of current selected range or region)
 * Ctrl-X: Cut (copy selected notes to clipboard and delete them)
