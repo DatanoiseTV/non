@@ -241,7 +241,7 @@ public:
     void crop ( int l, int r );
     void crop ( int l, int r, int t, int b );
 
-    void toggle_select ( int x, int y );
+    bool toggle_select ( int x, int y );
     void insert_time ( int x, int r );
     void select ( int start, int end );
     void select ( int start, int end, int t, int b );

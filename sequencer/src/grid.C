@@ -690,7 +690,10 @@ Grid::set_end ( int x, int y, int ex )
     unlock();
 }
 
-void
+/** Toggle note selection at coordinates.
+ * Returns true if a note was found at the given coordinates, false otherwise.
+ */
+bool
 Grid::toggle_select ( int x, int y )
 {
     lock();
@@ -708,6 +711,8 @@ Grid::toggle_select ( int x, int y )
     }
 
     unlock_no_undo();
+
+    return e != NULL;
 }
 
 /** copy selected notes to clipboard */
