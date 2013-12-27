@@ -305,8 +305,6 @@ Canvas::update_mapping ( void )
 
     adj_size();
 
-//    int old_margin = m.margin_left;
-
     m.margin_left = 0;
 
     m.draw = false;
@@ -315,14 +313,7 @@ Canvas::update_mapping ( void )
 
     m.draw = true;
 
-/*     if ( m.margin_left != old_margin ) */
-/*     { */
-/* //        signal_resize(); */
-/*         redraw(); */
-/*     } */
-/*     else */
-
-    damage(FL_DAMAGE_USER1);
+    damage(FL_DAMAGE_ALL);
 
 }
 
@@ -511,8 +502,6 @@ Canvas::draw_row_name ( int y, const char *name, int color )
 void
 Canvas::draw_mapping ( void )
 {
-//    int old_margin = m.margin_left;
-
     m.margin_left = 0;
 
     m.draw = false;
