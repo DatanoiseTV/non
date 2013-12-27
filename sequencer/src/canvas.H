@@ -114,17 +114,6 @@ enum {
 
 public:
 
-    bool selection_mode ( void ) const
-        {
-            return _event_state == EVENT_STATE_SELECT_RECTANGLE
-                || _event_state == EVENT_STATE_SELECT_RANGE;
-        }
-
-    void selection_mode ( bool b )
-        {
-            _event_state = b ? EVENT_STATE_SELECT_RECTANGLE : EVENT_STATE_NONE;
-        }
-
     enum { OFF, ON, TOGGLE };
 
     signal <void> signal_settings_change;

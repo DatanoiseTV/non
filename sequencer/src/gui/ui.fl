@@ -853,16 +853,11 @@ if ( p )
 o->maximum( pattern::patterns() );}
                 xywh {45 759 140 18} type Horizontal labelsize 10 align 4 minimum 1 maximum 128 step 1 value 1
               }
-              Fl_Button pattern_selection_mode {
-                label Select
-                callback {pattern_canvas_widget->selection_mode( o->value() );}
-                tooltip {Enable selection mode (you can also just hold down shift and drag the mouse)} xywh {260 734 45 44} type Toggle selection_color 5 labelsize 10
-              }
               Fl_Value_Slider velocity_slider {
                 label Velocity
                 callback {pattern_canvas_widget->selected_velocity( o->value() );
-((pattern*)(pattern_canvas_widget->grid()))->velocity( o->value() );} selected
-                xywh {356 736 127 18} type {Horz Fill} labelsize 10 align 4 minimum 1 maximum 127 step 1 value 127 textsize 9
+((pattern*)(pattern_canvas_widget->grid()))->velocity( o->value() );}
+                xywh {302 736 127 20} type {Horz Fill} labelsize 10 align 4 minimum 1 maximum 127 step 1 value 127 textsize 9
               }
               Fl_Value_Slider duration_slider {
                 label Duration
@@ -886,7 +881,7 @@ switch ( duration_choice->value() )
 }
 
 pat->duration( floor( o->value() * mult + 0.5 ) );}
-                xywh {356 761 90 20} type {Horz Fill} labelsize 10 align 4 minimum 1 maximum 32 step 1 value 1 textsize 9
+                xywh {302 761 90 20} type {Horz Fill} labelsize 10 align 4 minimum 1 maximum 32 step 1 value 1 textsize 9
               }
               Fl_Choice duration_choice {
                 callback {pattern *pat = (pattern*)(pattern_canvas_widget->grid());
@@ -938,7 +933,7 @@ duration_slider->step( step );
 duration_slider->value ( value );
 
 pat->duration ( floor( value * mult + 0.5 ) );} open
-                xywh {447 761 60 20} down_box BORDER_BOX labelsize 10 when 1 textsize 11
+                xywh {392 761 76 20} down_box BORDER_BOX labelsize 10 when 1 textsize 11
               } {
                 MenuItem {} {
                   label Snap
@@ -1549,7 +1544,6 @@ pattern_channel_choice->value( g->channel() );
 pattern_port_choice->value( g->port() );
 pattern_solo_button->value( g->mode() == SOLO );
 pattern_mute_button->value( g->mode() == MUTE );
-pattern_selection_mode->value( pattern_canvas_widget->selection_mode() );
 {
         char pat[5];
         snprintf( pat, sizeof(pat), "%i", g->bars() );
