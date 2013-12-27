@@ -1097,10 +1097,13 @@ Canvas::duplicate_range ( void )
 {
     Grid *g = m.grid->clone();
 
-    g->crop( _selection.x1, _selection.x2 );
-    g->viewport.x = 0;
-    grid( g );          // Select new grid
-    ui->update_sequence_widgets();              // number of phrases may have changed.
+    if ( g )
+    {
+        g->crop( _selection.x1, _selection.x2 );
+        g->viewport.x = 0;
+        grid( g );          // Select new grid
+        ui->update_sequence_widgets();              // number of phrases may have changed.
+    }
 }
 
 void
@@ -1408,8 +1411,14 @@ Canvas::handle ( int ev )
                             break;
                         case 'd':
                         {
-                            grid( grid()->clone() );
-                            ui->update_sequence_widgets();              // number of phrases may have changed.
+                            Grid *g = grid()->clone();
+
+                            if ( g )
+                            {
+                                grid( g );
+                                ui->update_sequence_widgets();  // number of phrases may have changed.
+                            }
+
                             break;
                         }
                         case 'D':

@@ -1383,23 +1383,26 @@ ab.run();}
               label {Add New}
               callback {Grid *g = current_canvas()->grid()->create();
 
-current_canvas()->grid( g );
+if ( g )
+{
+    current_canvas()->grid( g );
 
-update_pattern_widgets();
-update_sequence_widgets();
-update_phrase_widgets();}
+    update_pattern_widgets();
+    update_sequence_widgets();
+    update_phrase_widgets();}
+}
               xywh {0 0 34 18} shortcut 0x61
             }
             MenuItem {} {
               label Previous
               callback {if ( tabs->value() == pattern_tab )
 {
-	pattern_number_spinner->value( max( 0, (int)pattern_number_spinner->value() - 1 ) );
+	pattern_number_spinner->value( max( 1, (int)pattern_number_spinner->value() - 1 ) );
 	pattern_number_spinner->do_callback();
 }
 else
 {
-	phrase_number_spinner->value( max( 0, (int)phrase_number_spinner->value() - 1 ) );
+	phrase_number_spinner->value( max( 1, (int)phrase_number_spinner->value() - 1 ) );
 	phrase_number_spinner->do_callback();
 }}
               xywh {10 10 34 18} shortcut 0x5b
@@ -1421,11 +1424,13 @@ else
             MenuItem {} {
               label Duplicate
               callback {Canvas *w = current_canvas();
+Grid *g = w->grid()->clone();
 
-w->grid( w->grid()->clone() );
-
-// number of phrases may have changed.
-ui->update_sequence_widgets();}
+if ( g )
+{
+    w->grid( g );
+    ui->update_sequence_widgets();    // number of phrases may have changed.
+}}
               xywh {30 30 34 18} shortcut 0x64
             }
             MenuItem {} {

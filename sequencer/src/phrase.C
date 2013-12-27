@@ -68,7 +68,7 @@ phrase::phrase ( const phrase &rhs ) : Grid( rhs )
 phrase *
 phrase::clone ( void )
 {
-    return new phrase( *this );
+    return phrase::phrases() < 128 ? new phrase( *this ) : NULL;
 }
 
 /******************/

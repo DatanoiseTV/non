@@ -101,7 +101,7 @@ pattern::pattern ( const pattern &rhs ) : Grid( rhs )
 pattern *
 pattern::clone ( void )
 {
-    return new pattern( *this );
+    return pattern::patterns() < 128 ? new pattern( *this ) : NULL;
 }
 
 /******************/
