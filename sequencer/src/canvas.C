@@ -153,6 +153,22 @@ public:
             fl_line( x() + new_x * HS, y(), x() + new_x * HS, y() + h() );
         }
 
+    void damage_grid ( tick_t x, int y, tick_t w, int h )
+        {
+            if ( h == 0 )
+            {
+                damage( FL_DAMAGE_ALL );
+                return;
+            }
+
+            double VS = (double)this->h() / canvas->m.maxh;
+            double HS = (double)this->w() / ( _xmax - _xmin );
+
+            y = canvas->ntr( y );
+            if ( y < 0 ) return;
+
+            damage( FL_DAMAGE_ALL, this->x() + x * HS, this->y() + y * VS, (w * HS) + 0.5, VS + 0.5 );
+        }
 };
 
 Canvas::Canvas ( int X, int Y, int W, int H, const char *L ) : Fl_Group( X,Y,W,H,L )
@@ -255,7 +271,6 @@ Canvas::grid ( Grid *g )
     update_mapping();
 
     /* connect signals */
-    /* FIXME: what happens when we do this twice? */
     g->signal_events_change.connect( mem_fun( this, &Canvas::handle_event_change ) );
     g->signal_settings_change.connect( signal_settings_change.make_slot() );
     
@@ -529,6 +544,8 @@ Canvas::draw_ruler ( void )
 void
 Canvas::damage_grid ( tick_t x, int y, tick_t w, int h = 1 )
 {
+    panzoomer->damage_grid( x, y, w, h );
+
     y = ntr( y );
 
     if ( y < 0 )
