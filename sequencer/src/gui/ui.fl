@@ -342,16 +342,11 @@ if ( nsm && nsm->is_active() )
      }
 }
 
-// JUST A TEST
-if ( transport.ui.rolling )
-{
-	if ( ui->tabs->value() == ui->pattern_tab )
-		ui->pattern_canvas_widget->redraw_playhead();
-	else
-	if ( ui->tabs->value() == ui->phrase_tab )
-		ui->phrase_canvas_widget->redraw_playhead();
-
-}
+if ( ui->tabs->value() == ui->pattern_tab )
+	ui->pattern_canvas_widget->redraw_playhead();
+else
+if ( ui->tabs->value() == ui->phrase_tab )
+	ui->phrase_canvas_widget->redraw_playhead();
 
 ui->transport_state->do_callback();} {}
 } 
