@@ -219,6 +219,7 @@ Grid::change_update ( tick_t xt, int y, tick_t len, int height )
         _change_updates[0].xt = 0;
         _change_updates[0].y = 0;
         _change_updates[0].len = 0;
+        _change_updates[0].height = 0;
         return;
     }
 
@@ -252,6 +253,7 @@ Grid::change_update ( tick_t xt, int y, tick_t len, int height )
     _change_updates[_change_count].xt = xt;
     _change_updates[_change_count].y = y;
     _change_updates[_change_count].len = len;
+    _change_updates[_change_count].height = height;
     _change_count++;
 }
 
