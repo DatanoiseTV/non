@@ -1390,29 +1390,35 @@ if ( g )
             }
             MenuItem {} {
               label Previous
-              callback {if ( tabs->value() == pattern_tab )
+              callback {Fl_Value_Slider *spinner;
+
+if ( tabs->value() == pattern_tab )
+    spinner = pattern_number_spinner;
+else spinner = phrase_number_spinner;
+
+int val = spinner->value();
+
+if ( val > 1 )
 {
-	pattern_number_spinner->value( max( 1, (int)pattern_number_spinner->value() - 1 ) );
-	pattern_number_spinner->do_callback();
-}
-else
-{
-	phrase_number_spinner->value( max( 1, (int)phrase_number_spinner->value() - 1 ) );
-	phrase_number_spinner->do_callback();
+    spinner->value( val - 1 );
+    spinner->do_callback();
 }}
               xywh {10 10 34 18} shortcut 0x5b
             }
             MenuItem {} {
               label Next
-              callback {if ( tabs->value() == pattern_tab )
+              callback {Fl_Value_Slider *spinner;
+
+if ( tabs->value() == pattern_tab )
+    spinner = pattern_number_spinner;
+else spinner = phrase_number_spinner;
+
+int val = spinner->value();
+
+if ( val < spinner->maximum() )
 {
-	pattern_number_spinner->value( min( 127, (int)pattern_number_spinner->value() + 1 ));
-	pattern_number_spinner->do_callback();
-}
-else
-{
-	phrase_number_spinner->value( min( 127, (int)phrase_number_spinner->value() + 1 ));
-	phrase_number_spinner->do_callback();
+    spinner->value( val + 1 );
+    spinner->do_callback();
 }}
               xywh {20 20 34 18} shortcut 0x5d
             }
@@ -1539,6 +1545,7 @@ if ( !g )
 	return;
 
 pattern_number_spinner->value( g->number() );
+pattern_number_spinner->maximum( pattern::patterns() );
 pattern_name_field->value( g->name() );
 pattern_channel_choice->value( g->channel() );
 pattern_port_choice->value( g->port() );
@@ -1585,6 +1592,7 @@ g->viewport.h = pattern::patterns();
 phrase_canvas_widget->resize_grid();
 phrase_canvas_widget->changed_mapping();
 phrase_number_spinner->value( g->number() );
+phrase_number_spinner->maximum( phrase::phrases() );
 phrase_name_field->value( g->name() );
 phrase_solo_button->value( g->mode() == SOLO );
 phrase_mute_button->value( g->mode() == MUTE );
