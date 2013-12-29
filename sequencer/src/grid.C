@@ -720,12 +720,14 @@ Grid::toggle_select ( int x, int y )
 void
 Grid::copy ( void )
 {
+    _clipboard.clear();
     _ro_data.load()->events.copy_selected( &_clipboard );
 }
 
 void
 Grid::cut ( void )
 {
+    _clipboard.clear();
     _ro_data.load()->events.copy_selected( &_clipboard );
 
     lock();
