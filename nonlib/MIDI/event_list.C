@@ -390,16 +390,18 @@ namespace MIDI
     void
     event_list::copy_selected ( event_list *el ) const
     {
-        event *fi = first();
-
-        if ( ! fi )
-            return;
-
-        tick_t offset = fi->timestamp();
+        bool first_sel = true;
+        tick_t offset;
 
         FOR_SELECTED( e )
         {
             event *nel = 0;
+
+            if ( first_sel )            // Get offset of first selected event
+            {
+                first_sel = false;
+                offset = e->timestamp();
+            }
 
             if ( e->linked() )
                 nel = new event(*e->link());
