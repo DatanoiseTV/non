@@ -544,22 +544,47 @@ Canvas::draw_ruler ( void )
 void
 Canvas::damage_grid ( tick_t x, int y, tick_t w, int h = 1 )
 {
+    int Y;
+
+    // Find first valid row (considering note compaction)
+    for ( Y = -1; y < 128 && h > 0; y++, h-- )
+    {
+        Y = ntr( y );
+        if ( Y >= 0 ) break;
+    }
+
+    if ( Y < 0 )        // No row found within region?
+        return;
+
+    if ( h > m.maxh ) h = m.maxh;
+
     panzoomer->damage_grid( x, y, w, h );
 
-    y = ntr( y );
+    y = Y;
 
-    if ( y < 0 )
-        return;
-   
     // adjust for viewport.
-   
     x = m.grid->ts_to_x(x);
     w = m.grid->ts_to_x(w);
-   
+
     x -= m.vp->x;
     y -= m.vp->y;
 
-    if ( x < 0 || y < 0 || x >= m.vp->w || y >= m.vp->h )
+    if ( x < 0 )
+    {
+        w += x;
+        x = 0;
+    }
+
+    if ( y < 0 )
+    {
+        h += y;
+        y = 0;
+    }
+
+
+    int width = ceil( (this->w() - m.margin_left) / m.div_w ) + 1;    // FIXME - Why is m.vp->w incorrect?
+
+    if ( w <= 0 || h <= 0 || x >= width || y >= m.vp->h )
         return;
    
     damage(FL_DAMAGE_USER1, m.origin_x + m.margin_left + x * m.div_w,
@@ -745,7 +770,7 @@ Canvas::draw_clip ( void )
 
     /* draw bar/beat lines */
 
-    int gwidth = ceil( W / m.div_w ) + 1;       // Calculate number of horizontal grid units actually in view (m.vp->w is incorrect)
+    int gwidth = ceil( W / m.div_w ) + 1;       // Calculate number of horizontal grid units actually in view (FIXME why is m.vp->w incorrect?)
     int length = m.grid->ts_to_x( m.grid->length() ) - m.vp->x;
 
     // Limit to length of grid events
