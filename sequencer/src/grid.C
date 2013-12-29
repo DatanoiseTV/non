@@ -403,15 +403,14 @@ Grid::trim ( void )
         tick_t ts = e->timestamp();
         tick_t old_length = _rw_data->length;
 
-        _rw_data->length = ts;
-
-        _fix_length();
-
-        if ( _rw_data->length != old_length )
+        if ( ts != old_length )
         {
-            if ( _rw_data->length > old_length )
-                change_update( old_length, 0, _rw_data->length - old_length, 128 );
-            else change_update( _rw_data->length, 0, old_length - _rw_data->length, 128 );
+            _rw_data->length = ts;
+            _fix_length();
+
+            if ( ts > old_length )
+                change_update( old_length, 0, ts - old_length, 128 );
+            else change_update( ts, 0, old_length - ts, 128 );
         }
     }
 
@@ -443,11 +442,11 @@ Grid::expand ( void )
         tick_t ts = e->timestamp();
         tick_t old_length = _rw_data->length;
 
-        if ( ts > _rw_data->length )
+        if ( ts > old_length )
         {
             _rw_data->length = ts;
             _fix_length();
-            change_update( old_length, 0, _rw_data->length - old_length, 128 );
+            change_update( old_length, 0, ts - old_length, 128 );
         }
     }
 
