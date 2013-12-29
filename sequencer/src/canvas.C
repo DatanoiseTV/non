@@ -745,24 +745,23 @@ Canvas::draw_clip ( void )
 
     /* draw bar/beat lines */
 
-    for ( int gx = m.vp->x;
-          gx < m.vp->x + m.vp->w;
-          gx++ )
-    {
-        if ( m.grid->x_to_ts( gx ) > m.grid->length() )
-            break;
+    int gwidth = ceil( W / m.div_w ) + 1;       // Calculate number of horizontal grid units actually in view (m.vp->w is incorrect)
+    int length = m.grid->ts_to_x( m.grid->length() ) - m.vp->x;
 
-        if ( gx % m.grid->division() == 0 )
+    // Limit to length of grid events
+    if ( gwidth > length)
+        gwidth = length;
+
+    for ( int gx = 0; gx < gwidth; gx++ )
+    {
+        if ( (gx + m.vp->x) % m.grid->division() == 0 )
             fl_color( fl_color_average( FL_GRAY, FL_BLACK, 0.80 ) );
-        else if ( gx % m.grid->subdivision() == 0 )
+        else if ( (gx + m.vp->x) % m.grid->subdivision() == 0 )
             fl_color( fl_color_average( FL_GRAY, FL_BLACK, 0.40 ) );
         else
             continue;
         
-        fl_rectf( X + ( ( gx - m.vp->x ) * m.div_w ),
-                  Y, 
-                  m.div_w, 
-                  H );
+        fl_rectf( X + ( gx * m.div_w ), Y, m.div_w, H );
     }
 
     m.grid->draw_notes( draw_dash, this );
